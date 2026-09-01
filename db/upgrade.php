@@ -144,5 +144,26 @@ function xmldb_rememberme_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026090106, 'rememberme');
     }
 
+    if ($oldversion < 2026090107) {
+        // Coverage becomes the default way the next band unlocks. Only the
+        // column default moves: every activity that already exists keeps the
+        // mode its teacher chose, because changing how an activity paces itself
+        // underneath a running course would be a change nobody asked for.
+        $table = new xmldb_table('rememberme');
+        $field = new xmldb_field(
+            'unlockmode',
+            XMLDB_TYPE_INTEGER,
+            '2',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            '2',
+            'newperday'
+        );
+        $dbman->change_field_default($table, $field);
+
+        upgrade_mod_savepoint(true, 2026090107, 'rememberme');
+    }
+
     return true;
 }

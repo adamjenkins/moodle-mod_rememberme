@@ -78,7 +78,13 @@
 /* The hand of options: a single response multiple choice question is answered
    by clicking an option, not by choosing a radio button and pressing a submit
    button. The look is deliberately not the theme's question styling, because
-   the point of it is that a study set should not read as an exam paper. */
+   the point of it is that a study set should not read as an exam paper.
+
+   Colour comes from Bootstrap's own custom properties, which on Moodle 5.2's
+   Boost are the --bs- prefixed ones: --border-color, --body-bg, --primary and
+   friends are undefined here, and naming them only ever yields the fallback,
+   which pins one theme's greys into a plugin that should follow whatever theme
+   the site uses. Verified against the rendered page rather than assumed. */
 .path-mod-rememberme .rmm-hand {
     max-width: 40rem;
 }
@@ -102,9 +108,9 @@
     width: 100%;
     margin: 0 0 0.625rem;
     padding: 0.875rem 1rem 0.875rem 0.75rem;
-    border: 1px solid var(--border-color, #dee2e6);
+    border: 1px solid var(--bs-border-color, #dee2e6);
     border-radius: 14px;
-    background: var(--body-bg, #fff);
+    background: var(--bs-body-bg, #fff);
     color: inherit;
     font: inherit;
     text-align: start;
@@ -115,7 +121,7 @@
 }
 
 .path-mod-rememberme .rmm-choice:hover:not([disabled]) {
-    border-color: var(--primary, #0f6cbf);
+    border-color: var(--bs-primary, #0f6cbf);
 }
 
 .path-mod-rememberme .rmm-choice:active:not([disabled]) {
@@ -139,8 +145,8 @@
     width: 1.875rem;
     height: 1.875rem;
     border-radius: 9px;
-    background: var(--light, #f1f3f5);
-    color: var(--secondary, #5b5b62);
+    background: var(--bs-tertiary-bg, #f8f9fa);
+    color: var(--bs-secondary-color, #6a737b);
     font-size: 0.95rem;
     font-weight: 700;
     line-height: 1;

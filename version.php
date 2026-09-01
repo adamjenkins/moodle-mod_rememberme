@@ -25,8 +25,8 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'mod_rememberme';
-$plugin->version = 2026090106;
-$plugin->release = '0.1.1';
+$plugin->version = 2026090107;
+$plugin->release = '0.2.0';
 $plugin->maturity = MATURITY_ALPHA;
 // Moodle 5.2. The question bank APIs this plugin depends on, in particular
 // question banks as mod_qbank instances and question_bank_entries as the stable

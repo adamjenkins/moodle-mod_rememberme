@@ -5,6 +5,46 @@ All notable changes to this plugin are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-09-01
+
+### Added
+
+- Multiple choice questions are answered by tapping an option, on the web and in
+  the Moodle app. There is no submit button: the tap is the answer, and the
+  letter on each option becomes a tick or a cross in place so the result never
+  rests on colour alone.
+- `maxchoices` caps how many options a multiple choice question presents. Right
+  answers are always kept; wrong ones are thinned at random and drawn again each
+  sitting. Zero, the default, presents every option.
+
+### Changed
+
+- New activities unlock the next band on **coverage** — once every question in
+  the current band has been seen — instead of on a timer. Existing activities
+  keep the mode their teacher chose.
+- New items are drawn from the pool at random rather than in pool order, so the
+  tail of a large band is no longer left unseen indefinitely.
+- Answer options are shuffled every time, overriding the question's own
+  shuffle setting.
+
+### Fixed
+
+- The Moodle app view works. It had never been opened in an app: the site was
+  missing the `webservice/rest:use` capability that the admin interface grants
+  and `admin/cli/cfg.php` does not, and four further faults lived in the app
+  itself — `otherdata` being parsed twice, the answer form being found by a
+  document wide search that matched another part of the app and submitted empty
+  answers, a compiled component never being redrawn after an awaited call, and
+  the app's question component ignoring a replaced question.
+- Both stylesheets named colour variables that do not exist, so every value fell
+  back to a light theme constant. The app's dark theme drew near white borders
+  and bright chips on dark cards.
+- A response the question behaviour would not grade left the question
+  unanswerable in the engine while it stayed queued here, handing the learner
+  the same dead question forever and a session that could never end. Such a
+  response is now refused without being saved, and sessions already in that
+  state recover.
+
 ## [0.1.1] - 2026-09-01
 
 ### Added

@@ -14,7 +14,7 @@
         <FIELD NAME="targetretention" TYPE="number" LENGTH="5" NOTNULL="true" DEFAULT="0.9000" SEQUENCE="false" DECIMALS="4" COMMENT="Retrievability at which an item becomes due. Lower means fewer reviews and more forgetting."/>
         <FIELD NAME="sessionsize" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="20" SEQUENCE="false" COMMENT="Maximum items offered in one session."/>
         <FIELD NAME="newperday" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="10" SEQUENCE="false" COMMENT="Cap on new items introduced per day, so an eager learner is not buried in reviews a week later."/>
-        <FIELD NAME="unlockmode" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="0 time based, 1 mastery based."/>
+        <FIELD NAME="unlockmode" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="2" SEQUENCE="false" COMMENT="How the next band unlocks: 0 time based, 1 mastery based, 2 once nothing in the band is unseen. Coverage is the default."/>
         <FIELD NAME="unlockinterval" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="7" SEQUENCE="false" COMMENT="Days between band unlocks in time based mode."/>
         <FIELD NAME="stabilityfloor" TYPE="number" LENGTH="10" NOTNULL="true" DEFAULT="14.0000" SEQUENCE="false" DECIMALS="4" COMMENT="Stability in days at which an item counts as established, in mastery mode."/>
         <FIELD NAME="masteryproportion" TYPE="number" LENGTH="5" NOTNULL="true" DEFAULT="0.7000" SEQUENCE="false" DECIMALS="4" COMMENT="Share of a band that must be established before the next unlocks."/>

@@ -132,12 +132,18 @@ class mod_rememberme_mod_form extends moodleform_mod {
         );
 
         $mform->addElement('select', 'unlockmode', get_string('unlockmode', 'rememberme'), [
+            bands::MODE_EXHAUSTED => get_string('unlockmode_exhausted', 'rememberme'),
             bands::MODE_TIME => get_string('unlockmode_time', 'rememberme'),
             bands::MODE_MASTERY => get_string('unlockmode_mastery', 'rememberme'),
-            bands::MODE_EXHAUSTED => get_string('unlockmode_exhausted', 'rememberme'),
         ]);
         $mform->addHelpButton('unlockmode', 'unlockmode', 'rememberme');
-        $mform->setDefault('unlockmode', bands::MODE_TIME);
+        // Coverage is the default. A band that unlocks on a timer moves the
+        // learner on whether or not they have met what is in it, and a band that
+        // unlocks on mastery can hold them behind a handful of items they keep
+        // lapsing. Unlocking once nothing in the band is unseen asks only that
+        // the syllabus has actually been covered, which is what a teacher
+        // ordering questions into bands was expressing in the first place.
+        $mform->setDefault('unlockmode', bands::MODE_EXHAUSTED);
 
         $mform->addElement('text', 'unlockinterval', get_string('unlockinterval', 'rememberme'), ['size' => 5]);
         $mform->setType('unlockinterval', PARAM_INT);

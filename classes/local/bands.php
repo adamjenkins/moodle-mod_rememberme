@@ -142,7 +142,7 @@ class bands {
      * unlock takes effect in the session where it is earned rather than the
      * following day.
      *
-     * @param int $mode One of MODE_TIME or MODE_MASTERY.
+     * @param int $mode One of MODE_TIME, MODE_MASTERY or MODE_EXHAUSTED.
      * @param int $currentlevel The band the learner is on, 1 based.
      * @param int $bandcount How many bands the activity has.
      * @param array $context Evaluation inputs; see the keys read below.

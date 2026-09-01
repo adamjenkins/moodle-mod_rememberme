@@ -159,6 +159,25 @@ final class bands_pool_test extends \advanced_testcase {
     }
 
     /**
+     * A new activity unlocks on coverage unless the teacher says otherwise.
+     *
+     * A timer moves a learner on whether or not they met the band, and mastery
+     * can hold them behind a few items they keep lapsing. Coverage asks only
+     * that the questions have been seen, which is the weakest useful condition
+     * and so the right default.
+     *
+     * @return void
+     */
+    public function test_coverage_is_the_default_unlock_mode(): void {
+        global $DB;
+
+        $module = $this->getDataGenerator()->create_module('rememberme', ['course' => $this->course->id]);
+        $instance = $DB->get_record('rememberme', ['id' => $module->id], '*', MUST_EXIST);
+
+        $this->assertSame(bands::MODE_EXHAUSTED, (int)$instance->unlockmode);
+    }
+
+    /**
      * The exhausted mode unlocks once nothing in the band is unseen.
      *
      * @return void

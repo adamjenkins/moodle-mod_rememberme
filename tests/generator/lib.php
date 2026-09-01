@@ -33,6 +33,9 @@ class mod_rememberme_generator extends testing_module_generator {
     /**
      * Create a new instance, filling in the scheduling defaults.
      *
+     * These mirror the settings form's defaults, so a test that does not care
+     * about a setting gets the same activity a teacher would.
+     *
      * @param array|stdClass|null $record Instance settings.
      * @param array|null $options Generator options.
      * @return stdClass The created instance.
@@ -44,7 +47,7 @@ class mod_rememberme_generator extends testing_module_generator {
             'targetretention' => 0.9,
             'sessionsize' => 20,
             'newperday' => 10,
-            'unlockmode' => 0,
+            'unlockmode' => \mod_rememberme\local\bands::MODE_EXHAUSTED,
             'unlockinterval' => 7,
             'stabilityfloor' => 14.0,
             'masteryproportion' => 0.7,
@@ -60,6 +63,7 @@ class mod_rememberme_generator extends testing_module_generator {
             'pauseincorrect' => 2500,
             'grade' => 100,
             'completionweeks' => 0,
+            'maxchoices' => 0,
         ];
 
         foreach ($defaults as $name => $value) {

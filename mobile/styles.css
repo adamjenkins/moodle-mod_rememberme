@@ -2,9 +2,20 @@
 
    The study session is meant to read as a hand of cards rather than as an exam
    paper, so the options are full width slabs the learner taps and there is no
-   submit button anywhere. Colour is taken from the app's own theme variables,
-   with fallbacks, so the activity belongs to whatever site it is opened on; the
-   identity here is carried by shape, weight and timing instead. */
+   submit button anywhere. Colour comes from the app's own palette so the
+   activity belongs to whatever theme the learner is using; the identity here is
+   carried by shape and weight instead.
+
+   Use only variables the app actually defines. It has no --ion-color-step-*:
+   the palettes are --ion-background-color-step-* and --ion-text-color-step-*
+   (src/theme/theme.light.scss and theme.dark.scss). Naming a variable that does
+   not exist is not a harmless miss, because the fallback is then always used:
+   the first version of this file pinned light theme greys that way, and in dark
+   mode drew near white borders and bright chips on dark cards.
+
+   Both palettes count outwards from the current ground, so one mid step reads
+   correctly in either: --ion-text-color-step-400 is a mid grey in light mode
+   and in dark mode. Anything hard coded here would not be. */
 
 .mod-rememberme-due {
     font-weight: 600;
@@ -44,7 +55,7 @@
     width: 100%;
     margin: 0 0 10px;
     padding: 14px 16px 14px 12px;
-    border: 1px solid var(--ion-color-step-150, #e2e2e6);
+    border: 1px solid var(--ion-background-color-step-150, #e9ecef);
     border-radius: 14px;
     background: var(--ion-item-background, #fff);
     color: var(--ion-text-color, #1c1c1e);
@@ -81,8 +92,8 @@
     width: 30px;
     height: 30px;
     border-radius: 9px;
-    background: var(--ion-color-step-100, #f0f0f3);
-    color: var(--ion-color-step-600, #5b5b62);
+    background: var(--ion-background-color-step-150, #e9ecef);
+    color: var(--ion-text-color-step-400, #6a737b);
     font-size: 0.95rem;
     font-weight: 700;
     line-height: 1;
@@ -128,7 +139,7 @@
     margin: 16px 0 0;
     font-size: 1rem;
     font-weight: 600;
-    color: var(--ion-color-step-650, #4c4c53);
+    color: var(--ion-text-color-step-300, #495057);
 }
 
 /* The options arrive together rather than one at a time. A stagger was tried

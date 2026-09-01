@@ -74,13 +74,16 @@ band below it — so a category left unfinished before moving on is not stranded
 A band may draw on several categories, and the settings form offers a question
 bank to pick them from.
 Unlocking is per learner, so two students in one course can be at different
-points. Two modes:
+points. Three modes:
 
+- **Coverage** *(default)* — the next band unlocks once every question in the
+  current band has been seen at least once, whatever the learner made of them.
+  It is the default because it asks only that the syllabus has been covered: a
+  timer moves a learner on whether or not they met the band, and mastery can
+  hold them behind a handful of items they keep lapsing.
 - **Time** — one band per interval, counted from the learner's *first session*
   rather than course start, so somebody who joins in week three is not handed
   four bands at once.
-- **Coverage** — the next band unlocks once every question in the current band
-  has been seen at least once, whatever the learner made of them.
 - **Mastery** — the next band unlocks when a configurable proportion of the
   current band reaches a stability floor. Unseen items count against the
   threshold, so a band cannot qualify until most of it has been attempted. A
@@ -160,6 +163,19 @@ visited briefly and often. Answer, get immediate feedback with an optional audio
 cue, and the next question appears, all without a page reload. The pause is
 longer after a wrong answer, because there is more to take in.
 
+Multiple choice questions are presented as options the learner taps, with no
+submit button: the tap is the answer. The letter on each option turns into a
+tick or a cross in place, so the result never rests on colour alone. There is no
+confirmation step, which is reasonable here because being wrong costs a
+repetition and never a mark.
+
+Answer options are shuffled every time, whatever the question was authored to
+do, and a teacher can cap how many options a question presents — a question
+written with eight options is a reading exercise on a phone. The right answers
+are always kept and the wrong ones thinned at random, drawn again each time the
+question comes round, so the shape of the answer cannot be memorised in place of
+the answer.
+
 Scheduling state is written per question as it is answered, so a learner who
 closes the tab after three questions keeps the effect of those three.
 
@@ -174,12 +190,22 @@ closes the tab after three questions keeps the effect of those three.
 
 ## Mobile
 
-The Moodle app is supported through `db/mobile.php` and assumes a live
-connection. **Offline study is deliberately out of scope** for this release: it
-requires queueing attempts locally and replaying them, which raises questions
-this design does not yet answer — what counts as due while disconnected, how to
-reconcile a replayed attempt whose elapsed time is now stale, and what happens
-when the same question is answered on two devices before either syncs.
+The Moodle app shows the study session itself, not a summary of it. Questions
+are rendered by the app's own question component, so every question type the app
+understands works without this plugin knowing anything about them, and multiple
+choice gets the same tappable options as the web view. The app view has been
+exercised in a real Moodle app, though not yet on a physical device.
+
+The site has to be set up for the app before any of this works — web services
+on, the REST protocol enabled, and the `webservice/rest:use` capability granted,
+which the admin UI's mobile setting does and the CLI equivalents do not.
+
+The app assumes a live connection. **Offline study is deliberately out of
+scope** for this release: it requires queueing attempts locally and replaying
+them, which raises questions this design does not yet answer — what counts as
+due while disconnected, how to reconcile a replayed attempt whose elapsed time
+is now stale, and what happens when the same question is answered on two devices
+before either syncs.
 
 ## Privacy
 
