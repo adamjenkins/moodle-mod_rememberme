@@ -5,6 +5,21 @@ All notable changes to this plugin are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-09-01
+
+### Fixed
+
+- The activity now actually works in the Moodle app. The previous release
+  registered its app handler correctly and rendered, but only an informational
+  card whose "Start studying" button re-invoked the same handler, so it redrew
+  the identical card and no question was ever presented. The app view is now the
+  study session, as the web view is: it renders the question through the app's
+  own `core-question` component and grades the answer through the existing
+  `mod_rememberme_submit_answer` web service.
+- The app's due figure counted reviews only, so a learner whose whole queue was
+  new questions was told nothing was due. It now reports the queue a session
+  would actually offer.
+
 ## [0.1.0] - 2026-09-01
 
 First release.
@@ -48,4 +63,5 @@ First release.
 - `mod/rememberme:manage` was removed. It was declared but enforced nowhere, so
   it appeared in role definitions while granting nothing.
 
+[0.1.1]: https://github.com/adamjenkins/moodle-mod_rememberme/releases/tag/v0.1.1
 [0.1.0]: https://github.com/adamjenkins/moodle-mod_rememberme/releases/tag/v0.1.0

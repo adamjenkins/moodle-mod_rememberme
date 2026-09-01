@@ -17,42 +17,95 @@
 {{!
     @template mod_rememberme/mobile_view
 
-    The activity view inside the Moodle app.
+    The study session as shown in the Moodle app.
+
+    The question is rendered by the app's own core-question component, which is
+    exported to site plugins. It receives the server rendered question and turns
+    it into native controls via the app's question type handlers, so this
+    template does not need to know one question type from another.
+
+    The question binding is guarded, because the template is compiled before the
+    accompanying JavaScript has parsed it out of CONTENT_OTHERDATA.
 
     Context variables required for this template:
     * cmid Number The course module id
     * name String The activity name
-    * intro String The activity description, already formatted
-    * due Number How many questions are due now
-    * canattempt Boolean Whether this user may answer questions
+    * hasquestion Boolean Whether a question is being presented
+    * message String Shown when there is no question to answer
+    * due Number Items a session would offer right now
+    * answered Number Questions answered so far in this session
+    * total Number Questions in this session
     * weekdone Number Items completed this week
     * weektarget Number This week's frozen target
+    * streak Number Consecutive weeks cleared
+    * hasstreak Boolean Whether to show the streak
 
     Example context (json):
     {
         "cmid": 42,
         "name": "Vocabulary review",
-        "intro": "<p>Daily practice.</p>",
+        "hasquestion": true,
+        "message": "",
         "due": 12,
-        "canattempt": true,
+        "answered": 3,
+        "total": 20,
         "weekdone": 8,
-        "weektarget": 20
+        "weektarget": 20,
+        "streak": 3,
+        "hasstreak": true
     }
 }}
-<ion-card>
-    <ion-card-header>
-        <ion-card-title>{{name}}</ion-card-title>
-    </ion-card-header>
-    <ion-card-content>
-        <core-format-text text="{{intro}}"></core-format-text>
-        {{#canattempt}}
-            <p class="mod-rememberme-due">{{due}} {{#str}} duetoday, mod_rememberme {{/str}}</p>
-            <p>{{weekdone}} / {{weektarget}}</p>
-            <ion-button expand="block" core-site-plugins-new-content
-                        component="mod_rememberme" method="mobile_course_view"
-                        [args]="{cmid: {{cmid}}}">
-                {{#str}} startsession, mod_rememberme {{/str}}
+<div>
+    <ion-card>
+        <ion-card-content>
+            <ion-chip color="primary">
+                <ion-label>{{weekdone}} / {{weektarget}} {{#str}} weekprogresslabel, mod_rememberme {{/str}}</ion-label>
+            </ion-chip>
+            <ion-chip>
+                <ion-label>{{due}} {{#str}} itemsdue, mod_rememberme {{/str}}</ion-label>
+            </ion-chip>
+            {{#hasstreak}}
+                <ion-chip color="success">
+                    <ion-label>{{streak}} {{#str}} streaklabel, mod_rememberme {{/str}}</ion-label>
+                </ion-chip>
+            {{/hasstreak}}
+        </ion-card-content>
+    </ion-card>
+
+    {{#hasquestion}}
+        <core-question
+            *ngIf="question"
+            [question]="question"
+            component="mod_rememberme"
+            [componentId]="{{cmid}}"
+            contextLevel="module"
+            [contextInstanceId]="{{cmid}}"
+            preferredBehaviour="immediatefeedback"
+            (buttonClicked)="questionButtonClicked($event)"
+            (onAbort)="abortQuestion()">
+        </core-question>
+
+        <div class="ion-padding" *ngIf="!feedbackShown">
+            <ion-button expand="block" (click)="submitAnswer()" [disabled]="submitting">
+                {{#str}} checkanswer, mod_rememberme {{/str}}
             </ion-button>
-        {{/canattempt}}
-    </ion-card-content>
-</ion-card>
+        </div>
+
+        <div class="ion-padding" *ngIf="feedbackShown">
+            <ion-button expand="block" fill="outline" (click)="nextQuestion()">
+                {{#str}} nextquestion, mod_rememberme {{/str}}
+            </ion-button>
+        </div>
+    {{/hasquestion}}
+
+    {{^hasquestion}}
+        <ion-card>
+            <ion-card-header>
+                <ion-card-title>{{#str}} nothingdue, mod_rememberme {{/str}}</ion-card-title>
+            </ion-card-header>
+            <ion-card-content>
+                <p>{{message}}</p>
+            </ion-card-content>
+        </ion-card>
+    {{/hasquestion}}
+</div>

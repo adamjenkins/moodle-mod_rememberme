@@ -1,5 +1,25 @@
 # Changes
 
+## 0.1.1 — 2026-09-01
+
+Fixes Moodle app support, which did not work in 0.1.0.
+
+The app handler was registered correctly and rendered without error, but what it
+rendered was an informational card whose "Start studying" button re-invoked the
+same handler: it redrew the identical card, and no question was ever presented.
+The app view is now the study session, exactly as the web view is. Questions are
+rendered by the app's own `core-question` component and graded through the
+existing web service, so every question type the app supports works without this
+plugin knowing anything about them.
+
+Also fixed: the app reported how many items were due using reviews only, so a
+learner whose queue was entirely new questions was told nothing was due.
+
+Not verified on a device. The implementation is written against the Moodle app
+source (v5.3.0) and covered by tests that exercise the handler the way the app
+calls it, including validating the response against the web service contract,
+but it has not been run in the app itself.
+
 ## 0.1.0 — 2026-09-01
 
 First release. Alpha: the plugin is complete and verified against Moodle 5.2,

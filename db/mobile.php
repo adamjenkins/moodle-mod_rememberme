@@ -48,15 +48,12 @@ $addons = [
                 ],
             ],
         ],
+        // Only strings the app resolves on its own behalf belong here. The view
+        // template is rendered server side, so its {{#str}} tags are already
+        // substituted before the app sees them; listing those here would ship
+        // them twice and let the two copies drift.
         'lang' => [
             ['pluginname', 'rememberme'],
-            ['correct', 'rememberme'],
-            ['incorrect', 'rememberme'],
-            ['nothingdue', 'rememberme'],
-            ['nothingduedesc', 'rememberme'],
-            ['loading', 'rememberme'],
-            ['streakweeks', 'rememberme'],
-            ['progressthisweek', 'rememberme'],
         ],
     ],
 ];
