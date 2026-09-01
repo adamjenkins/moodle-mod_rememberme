@@ -2,11 +2,13 @@
 
 ## 0.2.0 — 2026-09-01
 
-The Moodle app view has been run in a real Moodle app for the first time, which
-found four things wrong with it and two ways a study session could trap a
-learner. Multiple choice questions are now answered by tapping an option rather
-than by choosing a radio button and pressing a submit button, and bands unlock on
-coverage by default.
+The Moodle app view has been run in a real Moodle app for the first time, and a
+session walked from end to end. That found six faults in the app view, two ways
+a study session could trap a learner, and a backup that had been quietly
+dropping settings and flattening the band structure of any activity copied or
+restored. Multiple choice questions are now answered by tapping an option rather
+than by choosing a radio button and pressing a submit button, and bands unlock
+on coverage by default.
 
 ### The app view now works
 
@@ -33,6 +35,38 @@ app does not define, so every value fell back to a light theme constant and drew
 near white borders and bright chips on dark cards. The web stylesheet had the
 same fault against Bootstrap 5.3. Both now take their colours from variables that
 exist, checked against the rendered page rather than assumed.
+
+### The app could not get past the first question
+
+After the first answer the app kept showing the same question, and answering it
+again was refused, correctly, as already answered — so a session could not be
+continued at all. The app caches the call this plugin answers with the next
+question, and the first advance stored its reply under a key every later advance
+then read back. That content is a different answer to the same call every time
+it is made, so it is no longer read from, or written to, a cache. Being told a
+question has already been answered now moves the learner on rather than
+reporting an error, since it means the screen is behind the server and the
+learner can do nothing about it.
+
+### Backup was dropping settings, and flattening bands
+
+The backup structure names its fields by hand, and four columns added since it
+was written were missing from it. A backup, restore or duplicate dropped them
+and the database supplied its defaults, so the copy looked right and was
+configured differently.
+
+The serious one is the band number, which is what groups categories into bands.
+It defaults to one, so **every band of a restored or duplicated activity was
+merged into a single band**: the teacher's ordering of the syllabus was
+destroyed and every learner was introduced to the whole question pool at once.
+The punctuality reward, the option cap, the chosen question bank, a lapsed
+item's return time and the punctuality history behind earned grace were all
+being lost the same way.
+
+The test for this now compares a duplicate against the schema rather than
+against a list of fields, so the next column added fails a test instead of
+shipping. A band number arriving from a backup file is also constrained, as the
+schedule state and the unlock reason already were.
 
 ### Two ways a session could trap a learner
 
@@ -82,14 +116,17 @@ moves.
 ### Upgrading
 
 Adds `maxchoices` to the instance table and changes the `unlockmode` column
-default. No existing setting is rewritten.
+default. No existing setting is rewritten. Activities backed up by an earlier
+release are missing the settings listed above from the backup file itself, so
+restoring one of those still loses them; anything backed up from this release
+onwards round trips completely.
 
 ### Verified
 
 On Moodle 5.2.2+ (build 20260818), PHP 8.4.24, MariaDB 11.8.6. Every step of the
 plugin's own CI workflow was run locally and exited 0:
 
-- PHPUnit: 174 tests, 3357 assertions, no failures, under `--fail-on-warning`.
+- PHPUnit: 177 tests, 3387 assertions, no failures, under `--fail-on-warning`.
 - phplint, phpcpd, phpmd, savepoints, validate: exit 0.
 - phpcs and phpdoc with `--max-warnings 0`: exit 0.
 - stylelint and eslint: exit 0, and each was proven to still report by feeding it
@@ -101,9 +138,12 @@ plugin's own CI workflow was run locally and exited 0:
 - The committed AMD bundle is byte identical to a fresh build.
 
 The web session and the Moodle app session were both driven end to end in a
-browser — question, answer, feedback, next question — and the resulting database
-rows read back. The app was the real Moodle app (5.3.0) served against the test
-site, in both its light and dark themes.
+browser, and the resulting database rows read back. The app was walked through a
+complete six question session, of both kinds of question, to the point where
+nothing was left due: the caching failure above only appeared from the second
+answer onwards, so a session that ended after one question had been hiding it.
+The app was the real Moodle app (5.3.0) served against the test site, in both
+its light and dark themes.
 
 **The app view has still not been run on a physical device.** The app it was
 tested in is browser hosted, which behaves differently in at least one known way:

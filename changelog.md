@@ -44,6 +44,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the same dead question forever and a session that could never end. Such a
   response is now refused without being saved, and sessions already in that
   state recover.
+- The Moodle app could not get past the first question: it was serving the next
+  question from its own cache, so the same question came back and answering it
+  again was refused as already answered.
+- Backup dropped four columns that had been added to the schema after the
+  backup structure was written. The worst was the band number, whose default
+  merged every band of a restored or duplicated activity into one, destroying
+  the teacher's ordering; `ontimegrace`, `maxchoices`, `questionbankcmid`,
+  `learningdue` and `wasdue` were being lost the same way.
 
 ## [0.1.1] - 2026-09-01
 
