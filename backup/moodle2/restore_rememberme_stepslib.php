@@ -176,6 +176,8 @@ class restore_rememberme_activity_structure_step extends restore_questions_activ
             $data->questioncategoryid = $newcategoryid;
         }
 
+        $data->bandnumber = self::clean_band_number($data->bandnumber ?? 1);
+
         $DB->insert_record('rememberme_bands', $data);
         // No mapping saved: nothing references a band by id. rememberme_bandstate
         // and rememberme_schedule both refer to bands by their integer bandlevel.
@@ -494,6 +496,21 @@ class restore_rememberme_activity_structure_step extends restore_questions_activ
     protected static function clean_schedule_state(string $state): string {
         $known = ['new', 'learning', 'review', 'relearning'];
         return in_array($state, $known, true) ? $state : 'new';
+    }
+
+    /**
+     * Constrain a restored band number to a band that exists.
+     *
+     * The number decides which band a category belongs to, and the file it
+     * arrives in may have been hand edited or produced by another site. Zero or
+     * a negative number would put the category in a band the unlock rules never
+     * reach, which presents as a category that silently contains nothing.
+     *
+     * @param mixed $bandnumber The band number from the backup file.
+     * @return int A band number from one upwards.
+     */
+    protected static function clean_band_number($bandnumber): int {
+        return max(1, (int)$bandnumber);
     }
 
     /**

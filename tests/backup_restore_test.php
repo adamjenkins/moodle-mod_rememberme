@@ -34,6 +34,9 @@ use mod_rememberme\local\session;
  * @covers     \restore_rememberme_activity_structure_step
  */
 final class backup_restore_test extends \advanced_testcase {
+    /** @var \context_module The question bank's context. */
+    protected \context_module $qbankcontext;
+
     /** @var \stdClass The course. */
     protected \stdClass $course;
 
@@ -59,8 +62,8 @@ final class backup_restore_test extends \advanced_testcase {
         $this->course = $generator->create_course();
 
         $qbank = $generator->create_module('qbank', ['course' => $this->course->id]);
-        $qbankcontext = \context_module::instance($qbank->cmid);
-        $this->category = question_get_default_category($qbankcontext->id);
+        $this->qbankcontext = \context_module::instance($qbank->cmid);
+        $this->category = question_get_default_category($this->qbankcontext->id);
 
         $qgen = $generator->get_plugin_generator('core_question');
         foreach (['b1', 'b2'] as $idnumber) {
@@ -160,6 +163,102 @@ final class backup_restore_test extends \advanced_testcase {
 
         $band = reset($bands);
         $this->assertGreaterThan(0, (int)$band->questioncategoryid);
+    }
+
+    /**
+     * The band *structure* survives, not merely the rows.
+     *
+     * Bands are groups of categories sharing a band number, so a copy that
+     * keeps every row but loses the numbering has silently merged the whole
+     * syllabus into one band and will introduce all of it at once.
+     *
+     * @return void
+     */
+    public function test_band_numbering_survives_a_duplicate(): void {
+        global $DB;
+
+        // A second band, so there is a structure to lose.
+        $qgen = $this->getDataGenerator()->get_plugin_generator('core_question');
+        $second = $qgen->create_question_category([
+            'contextid' => $this->qbankcontext->id,
+            'name' => 'second band',
+        ]);
+        $qgen->create_question('shortanswer', null, ['category' => $second->id, 'idnumber' => 'band2q1']);
+        $this->getDataGenerator()->get_plugin_generator('mod_rememberme')
+            ->create_band((int)$this->instance->id, (int)$second->id, 0, false, 2);
+
+        $cm = get_coursemodule_from_instance('rememberme', $this->instance->id, $this->course->id);
+        $newcm = (new cmactions($this->course))->duplicate((int)$cm->id);
+
+        $bands = $DB->get_records('rememberme_bands', ['rememberme' => $newcm->instance]);
+        $this->assertCount(2, $bands, 'both category rows should come across');
+
+        $numbers = array_map(static fn($b): int => (int)$b->bandnumber, $bands);
+        sort($numbers);
+        $this->assertSame([1, 2], $numbers, 'the copy must keep two distinct bands, not merge them into one');
+    }
+
+    /**
+     * Every instance setting survives, including the ones added after the
+     * backup structure was first written.
+     *
+     * The field list in the backup step is maintained by hand, so a column
+     * added later is silently dropped and the copy quietly falls back to the
+     * schema default. This asserts against the schema rather than a list.
+     *
+     * @return void
+     */
+    public function test_every_instance_column_survives_a_duplicate(): void {
+        global $DB;
+
+        // Set every configurable column to something other than its default,
+        // so a dropped field shows up as a difference rather than matching by
+        // luck.
+        $DB->update_record('rememberme', (object)[
+            'id' => $this->instance->id,
+            'questionbankcmid' => 424242,
+            'ontimegrace' => 0.125,
+            'maxchoices' => 3,
+        ]);
+
+        $cm = get_coursemodule_from_instance('rememberme', $this->instance->id, $this->course->id);
+        $newcm = (new cmactions($this->course))->duplicate((int)$cm->id);
+
+        $original = $DB->get_record('rememberme', ['id' => $cm->instance], '*', MUST_EXIST);
+        $copy = $DB->get_record('rememberme', ['id' => $newcm->instance], '*', MUST_EXIST);
+
+        // The id and course are rebuilt by the restore; the rest is settings.
+        // The name gains a "(copy)" suffix by design; the timestamps are the
+        // copy's own.
+        $skip = ['id', 'course', 'name', 'timecreated', 'timemodified'];
+        foreach (array_keys($DB->get_columns('rememberme')) as $column) {
+            if (in_array($column, $skip, true)) {
+                continue;
+            }
+            $this->assertEquals(
+                $original->{$column},
+                $copy->{$column},
+                "setting {$column} was not carried across the backup"
+            );
+        }
+    }
+
+    /**
+     * A band number out of a hand edited backup is brought back into range.
+     *
+     * @return void
+     */
+    public function test_restore_constrains_the_band_number(): void {
+        $method = new \ReflectionMethod(
+            \restore_rememberme_activity_structure_step::class,
+            'clean_band_number'
+        );
+        $method->setAccessible(true);
+
+        $this->assertSame(3, $method->invoke(null, 3), 'a real band number is kept');
+        $this->assertSame(1, $method->invoke(null, 0), 'band zero is not a band');
+        $this->assertSame(1, $method->invoke(null, -7));
+        $this->assertSame(1, $method->invoke(null, 'nonsense'));
     }
 
     /**

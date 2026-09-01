@@ -52,18 +52,29 @@ class backup_rememberme_activity_structure_step extends backup_questions_activit
 
         // Instance settings. Field list taken from db/install.xml, minus 'id'
         // (an attribute) and 'course' (rebuilt on restore from the target course).
+        //
+        // This list is maintained by hand, and a column added to install.xml
+        // without being added here is dropped in silence: the restore inserts
+        // the row without it and the database supplies its default, so the copy
+        // looks fine and is configured differently. That had already happened
+        // to three settings here and to bandnumber below, which defaults to 1
+        // and so merged every band of a restored activity into one.
+        // tests/backup_restore_test.php compares a duplicate against
+        // get_columns() rather than against a list, so the next omission fails
+        // a test instead of shipping.
         $rememberme = new backup_nested_element('rememberme', ['id'], [
             'name', 'intro', 'introformat', 'targetretention', 'sessionsize', 'newperday',
             'unlockmode', 'unlockinterval', 'stabilityfloor', 'masteryproportion', 'backstopdays',
             'coursestart', 'activeweeks', 'gracebalance', 'graceearnrate', 'passthreshold',
             'uselatency', 'audiocue', 'pausecorrect', 'pauseincorrect', 'grade',
-            'completionweeks', 'timecreated', 'timemodified',
+            'completionweeks', 'questionbankcmid', 'ontimegrace', 'maxchoices',
+            'timecreated', 'timemodified',
         ]);
 
         // Teacher configuration: bands and suspension windows. Always backed up.
         $bands = new backup_nested_element('bands');
         $band = new backup_nested_element('band', ['id'], [
-            'sortorder', 'questioncategoryid', 'includesubcategories',
+            'bandnumber', 'sortorder', 'questioncategoryid', 'includesubcategories',
         ]);
 
         $suspensions = new backup_nested_element('suspensions');
@@ -78,7 +89,7 @@ class backup_rememberme_activity_structure_step extends backup_questions_activit
         $schedule = new backup_nested_element('schedule', ['id'], [
             'userid', 'questionbankentryid', 'stability', 'difficulty', 'fuzzfactor',
             'reps', 'lapses', 'state', 'bandlevel', 'lastreviewed', 'duedate',
-            'timecreated', 'timemodified',
+            'learningdue', 'timecreated', 'timemodified',
         ]);
 
         $reviewlogs = new backup_nested_element('reviewlogs');
@@ -86,7 +97,7 @@ class backup_rememberme_activity_structure_step extends backup_questions_activit
             'userid', 'questionbankentryid', 'questionid', 'qtype', 'rating', 'fraction',
             'elapseddays', 'retrievability', 'stabilitybefore', 'difficultybefore',
             'stabilityafter', 'difficultyafter', 'latency', 'weekno', 'insuspension',
-            'timecreated',
+            'wasdue', 'timecreated',
         ]);
 
         $bandstates = new backup_nested_element('bandstates');
