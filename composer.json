@@ -1,0 +1,21 @@
+{
+    "name": "adamjenkins/moodle-mod_rememberme",
+    "description": "A Moodle activity module that schedules spaced repetition of question bank items, driven by whether the answer was objectively correct rather than by learner self-rating",
+    "type": "moodle-mod",
+    "keywords": [
+        "moodle",
+        "spaced-repetition",
+        "fsrs",
+        "question-bank",
+        "retention"
+    ],
+    "license": "GPL-3.0-or-later",
+    "require": {
+        "moodle/moodle": "^5.2",
+        "moodle/composer-installer": "*"
+    },
+    "require-dev": {
+        "squizlabs/php_codesniffer": "*",
+        "moodlehq/moodle-cs": "*"
+    }
+}

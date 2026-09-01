@@ -28,6 +28,10 @@ First release.
   progression, weekly completion, review-load forecast.
 - Privacy provider, backup and restore, course reset, `db/uninstall.php`,
   scheduled maintenance task, and Moodle app support (online only).
+- `composer.json`, so the plugin can be installed through Composer and listed
+  on Packagist.
+- GitHub Actions workflow running the moodle-plugin-ci battery against Moodle
+  5.2 on PHP 8.3 and 8.4, over PostgreSQL and MariaDB.
 
 ### Security
 

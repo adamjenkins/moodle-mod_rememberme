@@ -42,6 +42,8 @@ Moodle's own question grading, rather than by learner self-rating.
 - Privacy provider, backup and restore, course reset, uninstall cleanup, a
   maintenance task, and Moodle app support (online only; offline is out of
   scope for this release).
+- Installable through Composer, and continuously tested by GitHub Actions
+  against Moodle 5.2 on PHP 8.3 and 8.4 over PostgreSQL and MariaDB.
 
 ### Verified
 
