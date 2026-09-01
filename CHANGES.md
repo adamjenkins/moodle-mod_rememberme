@@ -2,97 +2,84 @@
 
 ## 0.1.1 — 2026-09-01
 
-Fixes Moodle app support, which did not work in 0.1.0, and closes a hole in how
-weekly credit was counted.
+Fixes Moodle app support, closes a hole in how weekly credit was counted, and
+adds a reward for returning while the queue is fresh.
 
-Weekly credit is now one point per distinct question engaged with rather than
-one per attempt. Counting attempts meant a learner could clear a whole week by
-answering a single question wrongly over and over, because a wrong answer brings
-it straight back. An answer submitted too fast to have been read earns no credit
-either, though it is still recorded. And a wrong answer now returns the question
-within the same sitting instead of the next day, which is a scheduling
-consequence rather than a grading one: being wrong costs time, never marks, so
-there is still nothing to gain by looking an answer up.
+### Moodle app support now works
 
-The app handler was registered correctly and rendered without error, but what it
-rendered was an informational card whose "Start studying" button re-invoked the
-same handler: it redrew the identical card, and no question was ever presented.
-The app view is now the study session, exactly as the web view is. Questions are
-rendered by the app's own `core-question` component and graded through the
-existing web service, so every question type the app supports works without this
-plugin knowing anything about them.
+0.1.0 registered its app handler correctly and rendered without error, but what
+it rendered was an informational card whose "Start studying" button re-invoked
+the same handler: it redrew the identical card, and no question was ever
+presented. The app view is now the study session, as the web view is. Questions
+are rendered by the app's own question component and graded through the existing
+web service, so every question type the app supports works without this plugin
+knowing anything about them. The app also reported how many items were due using
+reviews only, so a learner whose queue was entirely new questions was told
+nothing was due.
 
-Also fixed: the app reported how many items were due using reviews only, so a
-learner whose queue was entirely new questions was told nothing was due.
+### Weekly credit counts questions, not attempts
 
-Not verified on a device. The implementation is written against the Moodle app
-source (v5.3.0) and covered by tests that exercise the handler the way the app
-calls it, including validating the response against the web service contract,
-but it has not been run in the app itself.
+Credit was one point per attempt. Because a wrong answer brings the question
+straight back, that let a learner clear an entire week by answering a single
+question wrongly over and over. Credit is now one point per distinct question
+engaged with, and an answer submitted faster than the question could be read
+earns nothing — though it is still recorded, because the review log is a
+complete record of what happened.
 
-## 0.1.0 — 2026-09-01
+A wrong answer now returns the question within the same sitting rather than the
+next day. That is a scheduling consequence and not a grading one: being wrong
+costs time and repetition, never marks, so there is still nothing to gain by
+looking an answer up and the correctness signal the model depends on stays
+honest. A question that has lapsed many times leaves the short step, so one
+unanswerable question cannot crowd out the queue.
 
-First release. Alpha: the plugin is complete and verified against Moodle 5.2,
-but the memory model's constants have not yet been tuned against real cohort
-data.
+### Returning on time is rewarded
 
-### The activity
+Answering an item close to when it falls due now earns grace, up to a maximum
+the teacher sets. Punctuality is measured rather than visits, because opening
+the activity is free and counting visits would reward the appearance of the
+habit. It is paid in grace rather than marks, so it can only ever repair a bad
+week and never lifts anybody above full marks. Set the maximum to zero to switch
+it off.
 
-Remember Me schedules spaced repetition of question bank items. The schedule is
-driven entirely by whether the submitted answer was correct, as judged by
-Moodle's own question grading, rather than by learner self-rating.
+Finishing a week is now celebrated in the session, announced to assistive
+technology as well as shown, and the animation is suppressed for anyone who has
+asked for reduced motion.
 
-- **FSRS-style memory model.** Stability and difficulty are stored per learner
-  per question; the interval is derived at review time and never stored. A lapse
-  reduces stability sharply without discarding it, so an item known for months
-  that slips once returns sooner than a brand new one instead of resetting to
-  day one.
-- **Correctness becomes a rating** through a replaceable strategy class. Answer
-  speed can refine a correct answer but can never turn one into a lapse; it is
-  compared against the learner's own median for that question type and ignored
-  until there are enough samples. With it disabled the mapping is wrong/right,
-  and that simple path is the default rather than an untested branch.
-- **Tiered question pools.** A teacher binds question categories in order; new
-  items are drawn only from the learner's current band, and unlocking is per
-  learner. Bands unlock either on a fixed interval or when the current band is
-  established, the latter with a backstop so a struggling learner still covers
-  the syllabus. Revision is never band restricted.
-- **Grading measures schedule adherence, not accuracy**, because grading
-  accuracy would contaminate the signal the scheduler depends on. Each week's
-  target is frozen when the week begins, partial weeks earn partial credit, and
-  a pool of fractional grace credit is allocated across the whole course.
-- **Suspension windows stop the clock.** Implemented as an effective-time
-  function rather than by shifting stored dates, so windows stay editable
-  afterwards and are correct for learners who enrol during one.
-- **The module page is the session** — no landing page, no start button.
-  Immediate feedback, an optional audio cue, auto-advance, no page reloads.
-- **Teacher reports**: question difficulty across the cohort (which surfaces
-  badly worded items), coverage and retention, band progression flagging
-  backstop advances, weekly completion, and a review-load forecast.
-- Privacy provider, backup and restore, course reset, uninstall cleanup, a
-  maintenance task, and Moodle app support (online only; offline is out of
-  scope for this release).
-- Installable through Composer, and continuously tested by GitHub Actions
-  against Moodle 5.2 on PHP 8.3 and 8.4 over PostgreSQL and MariaDB.
+### Question pools are more flexible
+
+- A band may draw on several question categories rather than exactly one.
+- The settings form offers a question bank to choose categories from, instead of
+  one long list across every bank the course can reach.
+- New questions are introduced from the learner's current band **and every band
+  below it**, so a category left unfinished before moving on is not stranded.
+- Bands can unlock on a third condition: when every question in the current band
+  has been seen at least once. Coverage rather than mastery.
+
+### Upgrading
+
+Adds columns to the schedule, review log, bands and instance tables, with
+upgrade steps. Existing bands become one band each in their previous order.
+Punctuality history begins at this release; earlier answers are not counted
+rather than guessed at.
 
 ### Verified
 
-On Moodle 5.2.2+ (build 20260818), PHP 8.4.24, MariaDB 11.8.6:
+On Moodle 5.2.2+ (build 20260818), PHP 8.4.24, MariaDB 11.8.6, every step of the
+plugin's own CI workflow was run locally and exited 0:
 
-- PHPUnit: 138 tests, 3177 assertions, no failures.
-- `moodle-plugin-ci` phplint, phpcpd, phpmd, savepoints, validate: exit 0.
-- `moodle-plugin-ci` phpcs and phpdoc with `--max-warnings 0`: exit 0.
-  (phpdoc here is moodlecheck, which checks docblock/signature consistency
-  only.)
-- Mustache lint: no errors across all seven templates.
-- The full answer cycle exercised in a real browser, with the resulting
-  database rows read back.
+- PHPUnit: 162 tests, 3265 assertions, no failures, under `--fail-on-warning`.
+- phplint, phpcpd, phpmd, savepoints, validate: exit 0.
+- phpcs and phpdoc with `--max-warnings 0`: exit 0. (phpdoc here is moodlecheck,
+  which checks docblock and signature consistency only.)
+- Mustache lint: no errors across every template.
+- The grunt gate's eslint pass at `--max-warnings 0`: exit 0, and the committed
+  AMD bundle is identical to a fresh build.
+- A fresh install produces no debugging output, and the upgrade path was run.
+- The web session was exercised in a real browser and the resulting database
+  rows read back.
 
-### Known limitations
-
-- No Behat acceptance tests.
-- The Moodle app views follow the one in-tree example but have not been
-  exercised on a device.
-- Model constants are the published FSRS-5 defaults, and the mastery-mode
-  thresholds are reasoned estimates. The review log exists so both can be
-  refitted against real data.
+**The Moodle app view has not been exercised on a device.** It is written against
+the app source and covered by tests that call the handler the way the app does,
+including validating the response against the web service contract, but it has
+not been run in the app itself.

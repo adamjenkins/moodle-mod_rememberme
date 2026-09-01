@@ -69,13 +69,18 @@ different thresholds and researchers will want to swap it out entirely.
 ### Tiered question pools
 
 The pool is not flat. A teacher binds **question categories in an ordered
-sequence**, and new items are drawn only from the learner's current band.
+sequence**, and new items are drawn from the learner's current band and every
+band below it — so a category left unfinished before moving on is not stranded.
+A band may draw on several categories, and the settings form offers a question
+bank to pick them from.
 Unlocking is per learner, so two students in one course can be at different
 points. Two modes:
 
 - **Time** — one band per interval, counted from the learner's *first session*
   rather than course start, so somebody who joins in week three is not handed
   four bands at once.
+- **Coverage** — the next band unlocks once every question in the current band
+  has been seen at least once, whatever the learner made of them.
 - **Mastery** — the next band unlocks when a configurable proportion of the
   current band reaches a stability floor. Unseen items count against the
   threshold, so a band cannot qualify until most of it has been attempted. A
@@ -103,6 +108,19 @@ Each week the learner must clear what is due. Two rules make that fair:
   recedes as they approach it. The test suite asserts this directly.
 - **Partial weeks earn partial credit**, capped at 1.0, so a learner who logs in
   late and does what they can is not scored as harshly as one who never came.
+
+**Returning on time is rewarded.** Answering an item close to when it falls due
+earns grace, up to a maximum the teacher sets. Punctuality is measured rather
+than visits, because opening the activity is free and counting visits would
+reward the appearance of the habit rather than the habit. A learner who saves
+everything for one sitting a fortnight earns none of it, because their questions
+sat overdue. It is paid in grace, so it can only repair a bad week.
+
+**Getting a question wrong costs time, never marks.** A wrong answer brings the
+question back within the same sitting rather than the next day. Weekly credit
+counts distinct questions engaged with, so answering one question repeatedly
+earns one point, and an answer submitted faster than the question could be read
+earns nothing at all.
 
 **Grace credit** is a pool of fractional credit, not a count of whole weeks. It
 tops a week up toward 1.0 and costs exactly the gap it fills: rescuing a missed
@@ -171,7 +189,7 @@ weekly progress, band progress and session records.
 
 ## Status
 
-Version 0.1.0, alpha. The model constants are the published FSRS-5 defaults and
+Version 0.1.1, alpha. The model constants are the published FSRS-5 defaults and
 the Mode B thresholds are reasoned estimates rather than validated ones — the
 review log exists precisely so they can be refitted against real cohort data.
 
