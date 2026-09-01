@@ -101,7 +101,12 @@ final class task_maintenance_test extends \advanced_testcase {
     }
 
     /**
-     * Create an activity instance and its course module by hand.
+     * Create an activity instance in a course.
+     *
+     * This uses the plugin's own generator rather than assembling a course
+     * module by hand: the generator fills in every scheduling default, so a
+     * column added to the instance table later cannot quietly leave these
+     * fixtures building half a record.
      *
      * @param \stdClass $course The course to add it to.
      * @return array A two element list: the instance record and its module context.
@@ -109,30 +114,14 @@ final class task_maintenance_test extends \advanced_testcase {
     protected function create_rememberme(\stdClass $course): array {
         global $DB;
 
-        $now = time();
-        $instance = (object)[
+        $module = $this->getDataGenerator()->create_module('rememberme', [
             'course' => $course->id,
-            'name' => 'Remember me fixture',
-            'intro' => 'Fixture intro',
-            'introformat' => FORMAT_HTML,
-            'coursestart' => $now - WEEKSECS,
-            'timecreated' => $now,
-            'timemodified' => $now,
-        ];
-        $instance->id = $DB->insert_record('rememberme', $instance);
-
-        $moduleid = $DB->get_field('modules', 'id', ['name' => 'rememberme'], MUST_EXIST);
-        $cmid = add_course_module((object)[
-            'course' => $course->id,
-            'module' => $moduleid,
-            'instance' => $instance->id,
-            'section' => 0,
-            'visible' => 1,
-            'visibleold' => 1,
+            'coursestart' => time() - WEEKSECS,
         ]);
-        course_add_cm_to_section($course->id, $cmid, 0);
 
-        return [$instance, \context_module::instance($cmid)];
+        $instance = $DB->get_record('rememberme', ['id' => $module->id], '*', MUST_EXIST);
+
+        return [$instance, \context_module::instance($module->cmid)];
     }
 
     /**

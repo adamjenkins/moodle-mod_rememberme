@@ -88,6 +88,34 @@ final class backup_restore_test extends \advanced_testcase {
     }
 
     /**
+     * Enrol a learner and have them answer a single question.
+     *
+     * Every lifecycle test needs the same starting point: an activity with real
+     * learner data in it, so that a duplicate, a delete or a reset has something
+     * to get wrong.
+     *
+     * @return array A two element list: the learner, and the course module.
+     */
+    protected function answer_one_question(): array {
+        global $DB;
+
+        $student = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($student->id, $this->course->id, 'student');
+
+        $cm = get_coursemodule_from_instance('rememberme', $this->instance->id, $this->course->id);
+        $context = \context_module::instance($cm->id);
+        $record = $DB->get_record('rememberme', ['id' => $this->instance->id], '*', MUST_EXIST);
+
+        $session = new session($record, $context);
+        $this->assertTrue($session->start((int)$student->id));
+        $slot = $session->next_slot();
+        $prefix = $session->get_quba()->get_field_prefix($slot);
+        $session->process_response($slot, [$prefix . 'answer' => 'frog']);
+
+        return [$student, $cm];
+    }
+
+    /**
      * Duplicating the activity carries its configuration across.
      *
      * duplicate_module runs a real backup followed by a real restore, so this
@@ -157,18 +185,7 @@ final class backup_restore_test extends \advanced_testcase {
     public function test_duplicate_carries_no_user_data(): void {
         global $DB;
 
-        $student = $this->getDataGenerator()->create_user();
-        $this->getDataGenerator()->enrol_user($student->id, $this->course->id, 'student');
-
-        $cm = get_coursemodule_from_instance('rememberme', $this->instance->id, $this->course->id);
-        $context = \context_module::instance($cm->id);
-        $record = $DB->get_record('rememberme', ['id' => $this->instance->id], '*', MUST_EXIST);
-
-        $session = new session($record, $context);
-        $this->assertTrue($session->start((int)$student->id));
-        $slot = $session->next_slot();
-        $prefix = $session->get_quba()->get_field_prefix($slot);
-        $session->process_response($slot, [$prefix . 'answer' => 'frog']);
+        [$student, $cm] = $this->answer_one_question();
 
         $this->assertGreaterThan(0, $DB->count_records(
             'rememberme_schedule',
@@ -199,18 +216,7 @@ final class backup_restore_test extends \advanced_testcase {
     public function test_delete_instance_removes_everything(): void {
         global $DB;
 
-        $student = $this->getDataGenerator()->create_user();
-        $this->getDataGenerator()->enrol_user($student->id, $this->course->id, 'student');
-
-        $cm = get_coursemodule_from_instance('rememberme', $this->instance->id, $this->course->id);
-        $context = \context_module::instance($cm->id);
-        $record = $DB->get_record('rememberme', ['id' => $this->instance->id], '*', MUST_EXIST);
-
-        $session = new session($record, $context);
-        $session->start((int)$student->id);
-        $slot = $session->next_slot();
-        $prefix = $session->get_quba()->get_field_prefix($slot);
-        $session->process_response($slot, [$prefix . 'answer' => 'frog']);
+        [$student, $cm] = $this->answer_one_question();
 
         (new cmactions($this->course))->delete((int)$cm->id);
 
@@ -235,18 +241,7 @@ final class backup_restore_test extends \advanced_testcase {
         global $DB, $CFG;
         require_once($CFG->dirroot . '/mod/rememberme/lib.php');
 
-        $student = $this->getDataGenerator()->create_user();
-        $this->getDataGenerator()->enrol_user($student->id, $this->course->id, 'student');
-
-        $cm = get_coursemodule_from_instance('rememberme', $this->instance->id, $this->course->id);
-        $context = \context_module::instance($cm->id);
-        $record = $DB->get_record('rememberme', ['id' => $this->instance->id], '*', MUST_EXIST);
-
-        $session = new session($record, $context);
-        $session->start((int)$student->id);
-        $slot = $session->next_slot();
-        $prefix = $session->get_quba()->get_field_prefix($slot);
-        $session->process_response($slot, [$prefix . 'answer' => 'frog']);
+        [$student, $cm] = $this->answer_one_question();
 
         $this->assertGreaterThan(0, $DB->count_records(
             'rememberme_schedule',

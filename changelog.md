@@ -1,23 +1,47 @@
-# Changes
+# Changelog
 
-## 0.1.0 (unreleased)
+All notable changes to this plugin are documented here.
 
-First build. Not yet released or tagged.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-- FSRS-style scheduler with stability and difficulty as stored state and the
-  interval derived at review time. Lapses reduce stability without discarding it.
-- Ratings derived from objective correctness, with answer speed as an optional
-  secondary signal that can never turn a correct answer into a lapse.
+## [0.1.0] - 2026-09-01
+
+First release.
+
+### Added
+
+- FSRS-style spaced repetition scheduler for question bank items, driven by
+  objective correctness rather than learner self-rating. Stability and
+  difficulty are stored; the interval is derived at review time.
+- Replaceable grade-to-rating strategy, with answer speed as an optional
+  refinement that can never turn a correct answer into a lapse.
 - Tiered question pools with per-learner unlocking, in time-based or
-  mastery-based mode, with a backstop for stalled learners.
-- Weekly completion graded on schedule adherence rather than accuracy, with a
-  target frozen at the start of each week and fractional grace credit allocated
-  across the whole course.
+  mastery-based mode, the latter with a backstop for stalled learners.
+- Weekly completion graded on schedule adherence, with the target frozen at the
+  start of each week and fractional grace credit allocated across the course.
 - Suspension windows that stop the scheduling clock, implemented as an
-  effective-time function so windows stay editable after the fact.
-- Single-page study session: no landing page, immediate feedback, auto-advance,
-  optional audio cue, no page reloads.
+  effective-time function so they remain editable afterwards.
+- Single-page study session: no landing page, immediate feedback, optional
+  audio cue, auto-advance, no page reloads.
 - Teacher reports: question difficulty, coverage and retention, band
   progression, weekly completion, review-load forecast.
-- Privacy provider, backup and restore, course reset, scheduled maintenance task,
-  and Moodle app support (online only).
+- Privacy provider, backup and restore, course reset, `db/uninstall.php`,
+  scheduled maintenance task, and Moodle app support (online only).
+
+### Security
+
+- The submitted response is scoped to the question being answered. The question
+  engine processes every slot a request names, and the response arrives from the
+  client, so an unscoped payload could have graded every question in a learner's
+  session at once while the plugin recorded a single attempt.
+- The question file callback declares the signature core actually calls, and
+  checks that the usage belongs to the requesting learner (or that the caller
+  may view reports) before serving anything.
+- Restored data is cleaned as the settings form cleans it, and the lifecycle
+  state and band unlock reason are constrained to their known sets. A backup
+  file is untrusted input.
+- `mod/rememberme:manage` was removed. It was declared but enforced nowhere, so
+  it appeared in role definitions while granting nothing.
+
+[0.1.0]: https://github.com/adamjenkins/moodle-mod_rememberme/releases/tag/v0.1.0
