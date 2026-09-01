@@ -54,6 +54,7 @@
         <FIELD NAME="bandlevel" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Band this item was introduced from. Review is never band restricted; this is for reporting."/>
         <FIELD NAME="lastreviewed" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="duedate" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Cached wall clock due date, suspension aware at write time. The authoritative test is effective elapsed time; this exists so the hot query can use an index."/>
+        <FIELD NAME="learningdue" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="While non zero the item is in a short learning step after a wrong answer and returns at this moment, rather than at the interval its stability implies. Cleared once the item is answered correctly."/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>

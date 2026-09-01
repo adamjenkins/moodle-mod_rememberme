@@ -44,6 +44,29 @@ class scheduler {
     /** @var int Latency above this many milliseconds means the attempt was left open. */
     public const LATENCY_MAX_TRUSTED = 600000;
 
+    /**
+     * @var int Below this many milliseconds an answer was not read, only clicked.
+     *
+     * Deliberately conservative. The cost of setting it too high is refusing to
+     * count a fast learner's honest answer, which is worse than letting the odd
+     * gamed one through, so this sits well below any plausible reading time
+     * rather than at the average.
+     */
+    public const MIN_ENGAGED_LATENCY = 500;
+
+    /** @var int Seconds before an item answered wrongly comes back. */
+    public const LEARNING_STEP = 600;
+
+    /**
+     * @var int Lapses after which the short learning step is abandoned.
+     *
+     * Without this an item the learner simply cannot get right would return
+     * every ten minutes forever, crowding out everything else. Past this point
+     * it goes back on its normal schedule and shows up in the difficulty report,
+     * which is where a badly worded question belongs.
+     */
+    public const LEECH_LAPSES = 8;
+
     /** @var \stdClass The activity instance. */
     protected \stdClass $instance;
 
@@ -207,8 +230,39 @@ class scheduler {
      * @return bool True if the item is due.
      */
     public function is_due(\stdClass $record, int $now): bool {
+        // An item in a learning step returns at that moment instead, because it
+        // was answered wrongly and has not yet been answered right. The moment
+        // was already made suspension aware when it was written.
+        $learningdue = (int)($record->learningdue ?? 0);
+        if ($learningdue > 0) {
+            return $now >= $learningdue;
+        }
+
         $elapsed = $this->get_clock()->effective_days((int)$record->lastreviewed, $now);
         return $elapsed >= $this->interval_for_record($record);
+    }
+
+    /**
+     * Whether an attempt counts as the learner engaging with the question.
+     *
+     * An answer submitted faster than anyone could read the question is a click,
+     * not recall. Such attempts are still recorded and still move the memory
+     * state, because the review log is a complete record of what happened, but
+     * they do not count toward the week: otherwise a learner can clear a weekly
+     * target by hammering the submit button.
+     *
+     * Attempts with no latency measurement count. A missing measurement is not
+     * evidence of anything, and refusing to count it would penalise a learner
+     * for a server side gap.
+     *
+     * @param int|null $latencyms Milliseconds taken to answer.
+     * @return bool True if the attempt counts toward weekly completion.
+     */
+    public static function is_engaged(?int $latencyms): bool {
+        if ($latencyms === null) {
+            return true;
+        }
+        return $latencyms >= self::MIN_ENGAGED_LATENCY;
     }
 
     /**
@@ -427,6 +481,23 @@ class scheduler {
         $interval = $this->engine->interval_for($after->get_stability()) * $fuzzfactor;
         $duedate = $clock->add_effective_seconds($now, $interval * DAYSECS);
 
+        // A wrong answer puts the item into a short learning step, so the
+        // learner meets it again in the same sitting rather than tomorrow. This
+        // is scheduling, not grading: getting it wrong costs time and repetition,
+        // never marks, so there is nothing to gain by looking the answer up.
+        //
+        // An item that has lapsed many times stops getting the short step,
+        // because otherwise a question the learner cannot answer would return
+        // every ten minutes indefinitely and crowd out everything else.
+        $lapses = ($existing ? (int)$existing->lapses : 0) + (rating::is_success($rating) ? 0 : 1);
+        $learningdue = 0;
+        if (!rating::is_success($rating) && $lapses < self::LEECH_LAPSES) {
+            $learningdue = $clock->add_effective_seconds($now, self::LEARNING_STEP);
+            // The cached due date has to agree, or the indexed prefilter would
+            // never surface the item for the learning step to apply to.
+            $duedate = $learningdue;
+        }
+
         $record = (object)[
             'rememberme' => $this->instance->id,
             'userid' => $userid,
@@ -438,6 +509,7 @@ class scheduler {
             'bandlevel' => $existing ? (int)$existing->bandlevel : $bandlevel,
             'lastreviewed' => $now,
             'duedate' => $duedate,
+            'learningdue' => $learningdue,
             'timemodified' => $now,
         ];
 
@@ -597,10 +669,16 @@ class scheduler {
 
         $week = $this->ensure_week_snapshot($userid, $weekno, $now);
 
+        // Count DISTINCT questions engaged with this week, not attempts. Adding
+        // one per attempt let a learner clear a whole week by answering a single
+        // question wrong over and over, since a wrong answer brings it straight
+        // back: measured at seven attempts on one question clearing a target of
+        // five, with four questions never touched.
+        //
         // Work during a suspension window cannot lose grade credit, and the week
         // itself is out of the denominator, so it is counted but does not move a
         // fraction. It feeds the grace pool instead, at final grade calculation.
-        $completed = (int)$week->completed + 1;
+        $completed = $this->count_week_completed($userid, $weekno);
         $fraction = weeks::score_week((int)$week->snapshottarget, $completed);
 
         $DB->update_record('rememberme_weeks', (object)[
@@ -608,6 +686,37 @@ class scheduler {
             'completed' => $completed,
             'fraction' => $fraction,
             'timemodified' => $now,
+        ]);
+    }
+
+    /**
+     * How many distinct questions the learner has genuinely engaged with this week.
+     *
+     * Distinct, so repeating one question cannot stand in for covering the
+     * queue. Engaged, so answers submitted too fast to have been read do not
+     * count. Both conditions are read from the review log rather than kept as a
+     * running total, so the figure can always be recomputed from the record of
+     * what actually happened.
+     *
+     * @param int $userid The learner.
+     * @param int $weekno The week number.
+     * @return int Distinct questions engaged with.
+     */
+    public function count_week_completed(int $userid, int $weekno): int {
+        global $DB;
+
+        $sql = "SELECT COUNT(DISTINCT questionbankentryid)
+                  FROM {rememberme_review_log}
+                 WHERE rememberme = :instanceid
+                   AND userid = :userid
+                   AND weekno = :weekno
+                   AND (latency IS NULL OR latency >= :minlatency)";
+
+        return (int)$DB->count_records_sql($sql, [
+            'instanceid' => $this->instance->id,
+            'userid' => $userid,
+            'weekno' => $weekno,
+            'minlatency' => self::MIN_ENGAGED_LATENCY,
         ]);
     }
 
@@ -853,6 +962,19 @@ class scheduler {
         $records = $DB->get_recordset('rememberme_schedule', ['rememberme' => $this->instance->id]);
         $updated = 0;
         foreach ($records as $record) {
+            if ((int)($record->learningdue ?? 0) > 0) {
+                // An item mid learning step is governed by that moment, so its
+                // cached date is recomputed from the step rather than from the
+                // interval its stability implies.
+                $duedate = $clock->add_effective_seconds((int)$record->lastreviewed, self::LEARNING_STEP);
+                if ($duedate !== (int)$record->learningdue) {
+                    $DB->set_field('rememberme_schedule', 'learningdue', $duedate, ['id' => $record->id]);
+                    $DB->set_field('rememberme_schedule', 'duedate', $duedate, ['id' => $record->id]);
+                    $updated++;
+                }
+                continue;
+            }
+
             $interval = $this->interval_for_record($record);
             $duedate = $clock->add_effective_seconds((int)$record->lastreviewed, $interval * DAYSECS);
             if ($duedate !== (int)$record->duedate) {

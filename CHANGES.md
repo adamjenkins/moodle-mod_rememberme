@@ -2,7 +2,17 @@
 
 ## 0.1.1 — 2026-09-01
 
-Fixes Moodle app support, which did not work in 0.1.0.
+Fixes Moodle app support, which did not work in 0.1.0, and closes a hole in how
+weekly credit was counted.
+
+Weekly credit is now one point per distinct question engaged with rather than
+one per attempt. Counting attempts meant a learner could clear a whole week by
+answering a single question wrongly over and over, because a wrong answer brings
+it straight back. An answer submitted too fast to have been read earns no credit
+either, though it is still recorded. And a wrong answer now returns the question
+within the same sitting instead of the next day, which is a scheduling
+consequence rather than a grading one: being wrong costs time, never marks, so
+there is still nothing to gain by looking an answer up.
 
 The app handler was registered correctly and rendered without error, but what it
 rendered was an informational card whose "Start studying" button re-invoked the

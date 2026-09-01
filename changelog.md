@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.1] - 2026-09-01
 
+### Changed
+
+- Weekly credit is now one point per distinct question engaged with, not one per
+  attempt. Counting attempts let a learner clear an entire week by answering a
+  single question wrongly over and over, since a wrong answer brings it straight
+  back: measured at seven attempts on one question clearing a target of five,
+  with four questions never touched.
+- An answer submitted faster than the question could be read earns no weekly
+  credit. Such attempts are still recorded and still move the memory state,
+  because the review log is a complete record of what happened.
+- A wrong answer now puts the question into a short learning step, so it returns
+  in the same sitting rather than the next day. This is scheduling and not
+  grading: being wrong costs time and repetition, never marks, so there is
+  nothing to gain by looking an answer up. A question that has lapsed many times
+  leaves the step, so one unanswerable question cannot crowd out the queue.
+
 ### Fixed
 
 - The activity now actually works in the Moodle app. The previous release
