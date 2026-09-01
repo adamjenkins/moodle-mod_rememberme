@@ -227,9 +227,10 @@ class Session {
      */
     loadQuestion() {
         this.busy = true;
-        // core/ajax returns a jQuery Deferred, which has no finally(), so
-        // chaining one would throw as the chain is built rather than when it
-        // runs. Wrapping in a native promise keeps the chain safe.
+        // The core/ajax call returns a jQuery Deferred, which has no
+        // finally(), so chaining one would throw as the chain is built rather
+        // than when it runs. Wrapping it in a native promise keeps the chain
+        // safe.
         return Promise.resolve(
             Ajax.call([{
                 methodname: 'mod_rememberme_get_question',
