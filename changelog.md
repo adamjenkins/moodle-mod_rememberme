@@ -47,6 +47,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The Moodle app could not get past the first question: it was serving the next
   question from its own cache, so the same question came back and answering it
   again was refused as already answered.
+- The settings form accepted six values that nothing downstream acted on, and
+  said nothing about it. The one that mattered was the interval between band
+  unlocks: zero or less unlocked every band at once, so a time based activity
+  ignored the ordering its teacher had built.
 - Backup dropped four columns that had been added to the schema after the
   backup structure was written. The worst was the band number, whose default
   merged every band of a restored or duplicated activity into one, destroying

@@ -103,6 +103,23 @@ Answer options are shuffled every time, whatever the question was authored to do
 An answer that sits in the same position can be recalled by position rather than
 by content, which is the opposite of what this activity measures.
 
+### Settings that were accepted and then ignored
+
+The settings form let several values through that nothing downstream would act
+on, and said nothing about it. A negative punctuality reward or grace earn rate
+reads as "switched off" everywhere it is consumed, so entering one withdrew the
+reward rather than reporting a mistake; a negative feedback pause advanced the
+moment an answer was graded, so no feedback was seen.
+
+The one with real consequence is the interval between band unlocks: **zero or
+less unlocked every band at once**, so a time based activity ignored the
+ordering its teacher had just built, from each learner's first session, with
+nothing to indicate it. All six are now refused at the point of entry.
+
+The help for the punctuality reward now also says that everything a learner
+earns is capped against the grace granted up front, which is why raising that
+one setting on its own changes nothing.
+
 ### Bands unlock on coverage by default
 
 New activities now unlock the next band once every question in the current band
@@ -126,11 +143,12 @@ onwards round trips completely.
 On Moodle 5.2.2+ (build 20260818), PHP 8.4.24, MariaDB 11.8.6. Every step of the
 plugin's own CI workflow was run locally and exited 0:
 
-- PHPUnit: 177 tests, 3387 assertions, no failures, under `--fail-on-warning`.
+- PHPUnit: 184 tests, 3405 assertions, no failures, under `--fail-on-warning`.
 - phplint, phpcpd, phpmd, savepoints, validate: exit 0.
 - phpcs and phpdoc with `--max-warnings 0`: exit 0.
 - stylelint and eslint: exit 0, and each was proven to still report by feeding it
-  a known bad input first.
+  a known bad input first. The new settings tests were proven the same way, by
+  removing a check from a deployed copy and confirming a test failed.
 - Mustache lint: no errors. The HTML validator it calls is unreachable from the
   build machine, so those checks ran on GitHub rather than here.
 - A fresh install from `install.xml` produced no debugging output, and the

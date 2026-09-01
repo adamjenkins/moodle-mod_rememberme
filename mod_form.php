@@ -496,6 +496,35 @@ class mod_rememberme_mod_form extends moodleform_mod {
         if ($data['gracebalance'] < 0) {
             $errors['gracebalance'] = get_string('errornonnegative', 'rememberme');
         }
+        // The two rates a learner earns grace at. A negative one is read as
+        // switched off further down, so it would quietly withdraw the reward
+        // rather than report a mistake. How much they can add up to is capped
+        // against the up front grant, which is what the help text explains.
+        if ($data['graceearnrate'] < 0) {
+            $errors['graceearnrate'] = get_string('errornonnegative', 'rememberme');
+        }
+        if ($data['ontimegrace'] < 0) {
+            $errors['ontimegrace'] = get_string('errornonnegative', 'rememberme');
+        }
+
+        // The feedback pauses are milliseconds. A negative one advances the
+        // moment the answer is graded, so the learner never sees the result.
+        if ($data['pausecorrect'] < 0) {
+            $errors['pausecorrect'] = get_string('errornonnegative', 'rememberme');
+        }
+        if ($data['pauseincorrect'] < 0) {
+            $errors['pauseincorrect'] = get_string('errornonnegative', 'rememberme');
+        }
+
+        if ((int)$data['unlockmode'] === bands::MODE_TIME) {
+            // An interval of zero or less unlocks every band at once
+            // (bands::level_for_time), so the ordering the teacher just built
+            // would be ignored from the learner's first session without
+            // anything saying so.
+            if ($data['unlockinterval'] < 1) {
+                $errors['unlockinterval'] = get_string('errorpositive', 'rememberme');
+            }
+        }
 
         if ((int)$data['unlockmode'] === bands::MODE_MASTERY) {
             // A proportion at or above 1.0 lets a few persistently lapsing items
@@ -505,6 +534,11 @@ class mod_rememberme_mod_form extends moodleform_mod {
             }
             if ($data['stabilityfloor'] <= 0) {
                 $errors['stabilityfloor'] = get_string('errorpositive', 'rememberme');
+            }
+            // Zero is a real setting here: it means no backstop at all. A
+            // negative one means the same thing by accident.
+            if ($data['backstopdays'] < 0) {
+                $errors['backstopdays'] = get_string('errornonnegative', 'rememberme');
             }
         }
 
