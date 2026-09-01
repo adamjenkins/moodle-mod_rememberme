@@ -30,6 +30,8 @@
         <FIELD NAME="pauseincorrect" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="2500" SEQUENCE="false" COMMENT="Milliseconds of feedback after an incorrect answer. Longer, because there is more to take in."/>
         <FIELD NAME="grade" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="100" SEQUENCE="false"/>
         <FIELD NAME="completionweeks" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Custom completion rule: weeks the learner must clear. Zero disables the rule."/>
+        <FIELD NAME="questionbankcmid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Course module id of the question bank whose categories the settings form offers. Zero means every bank the course can reach."/>
+        <FIELD NAME="ontimegrace" TYPE="number" LENGTH="10" NOTNULL="true" DEFAULT="0.5000" SEQUENCE="false" DECIMALS="4" COMMENT="Most grace a learner can earn by answering items when they fall due rather than late. Zero switches the reward off."/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>
@@ -89,6 +91,7 @@
         <FIELD NAME="latency" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Milliseconds taken to answer, or null when the measurement was not trustworthy."/>
         <FIELD NAME="weekno" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="insuspension" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Whether this was voluntary work inside a suspension window."/>
+        <FIELD NAME="wasdue" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="The moment this item was due when it was answered, so punctuality can be measured after the fact. Zero for an item that had never come due, such as a first sighting."/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>
       <KEYS>
@@ -108,7 +111,8 @@
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="rememberme" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
-        <FIELD NAME="sortorder" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Teacher defined sequence. Question difficulty in a syllabus follows the syllabus, not a memory model."/>
+        <FIELD NAME="sortorder" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Order within the band. Question difficulty in a syllabus follows the syllabus, not a memory model."/>
+        <FIELD NAME="bandnumber" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Which band this category belongs to, 1 based. Rows sharing a number form one band, so a band can draw on several categories."/>
         <FIELD NAME="questioncategoryid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="includesubcategories" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>
@@ -117,7 +121,7 @@
         <KEY NAME="rememberme" TYPE="foreign" FIELDS="rememberme" REFTABLE="rememberme" REFFIELDS="id"/>
       </KEYS>
       <INDEXES>
-        <INDEX NAME="rememberme-sortorder" UNIQUE="false" FIELDS="rememberme, sortorder"/>
+        <INDEX NAME="rememberme-bandnumber" UNIQUE="false" FIELDS="rememberme, bandnumber, sortorder"/>
       </INDEXES>
     </TABLE>
 

@@ -76,20 +76,25 @@ class mod_rememberme_generator extends testing_module_generator {
      *
      * @param int $remembermeid The instance id.
      * @param int $questioncategoryid The question category.
-     * @param int $sortorder The band order.
+     * @param int $sortorder The order of this category within its band.
      * @param bool $includesubcategories Whether to include subcategories.
+     * @param int|null $bandnumber The band this category belongs to, or null to derive it from the sort order.
      * @return int The new band id.
      */
     public function create_band(
         int $remembermeid,
         int $questioncategoryid,
         int $sortorder = 0,
-        bool $includesubcategories = false
+        bool $includesubcategories = false,
+        ?int $bandnumber = null
     ): int {
         global $DB;
 
         return $DB->insert_record('rememberme_bands', (object)[
             'rememberme' => $remembermeid,
+            // Bands are 1 based, and the old signature passed a 0 based sort
+            // order that doubled as the band, so that stays the default.
+            'bandnumber' => $bandnumber ?? ($sortorder + 1),
             'sortorder' => $sortorder,
             'questioncategoryid' => $questioncategoryid,
             'includesubcategories' => $includesubcategories ? 1 : 0,

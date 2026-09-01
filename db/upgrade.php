@@ -48,5 +48,80 @@ function xmldb_rememberme_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026090104, 'rememberme');
     }
 
+    if ($oldversion < 2026090105) {
+        // A band may now draw on several categories, so a band is identified by
+        // its number rather than by being one row. Existing rows were one band
+        // each, in sortorder, which is what this preserves.
+        $table = new xmldb_table('rememberme_bands');
+        $field = new xmldb_field('bandnumber', XMLDB_TYPE_INTEGER, '6', null, XMLDB_NOTNULL, null, '1', 'sortorder');
+
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+
+            $instances = $DB->get_fieldset_sql('SELECT DISTINCT rememberme FROM {rememberme_bands}');
+            foreach ($instances as $instanceid) {
+                $bands = $DB->get_records('rememberme_bands', ['rememberme' => $instanceid], 'sortorder ASC', 'id');
+                $number = 1;
+                foreach ($bands as $band) {
+                    $DB->set_field('rememberme_bands', 'bandnumber', $number, ['id' => $band->id]);
+                    $number++;
+                }
+            }
+        }
+
+        $oldindex = new xmldb_index('rememberme-sortorder', XMLDB_INDEX_NOTUNIQUE, ['rememberme', 'sortorder']);
+        if ($dbman->index_exists($table, $oldindex)) {
+            $dbman->drop_index($table, $oldindex);
+        }
+        $newindex = new xmldb_index(
+            'rememberme-bandnumber',
+            XMLDB_INDEX_NOTUNIQUE,
+            ['rememberme', 'bandnumber', 'sortorder']
+        );
+        if (!$dbman->index_exists($table, $newindex)) {
+            $dbman->add_index($table, $newindex);
+        }
+
+        // Punctuality is measured against the due date an item had when it was
+        // answered, which was not previously recorded. Zero means "not known",
+        // and history written before this point is simply not counted.
+        $table = new xmldb_table('rememberme_review_log');
+        $field = new xmldb_field('wasdue', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'insuspension');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $table = new xmldb_table('rememberme');
+        $field = new xmldb_field(
+            'questionbankcmid',
+            XMLDB_TYPE_INTEGER,
+            '10',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            '0',
+            'completionweeks'
+        );
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $field = new xmldb_field(
+            'ontimegrace',
+            XMLDB_TYPE_NUMBER,
+            '10, 4',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            '0.5000',
+            'questionbankcmid'
+        );
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2026090105, 'rememberme');
+    }
+
     return true;
 }

@@ -80,16 +80,36 @@ class mod_rememberme_mod_form extends moodleform_mod {
 
         $mform->addElement('static', 'bandsintro', '', get_string('bandsintro', 'rememberme'));
 
+        // Which bank the categories come from. Offered first, because a course
+        // with several banks produces a category list too long to pick through.
+        $mform->addElement(
+            'select',
+            'questionbankcmid',
+            get_string('questionbank', 'rememberme'),
+            $this->get_bank_options()
+        );
+        $mform->addHelpButton('questionbankcmid', 'questionbank', 'rememberme');
+        $mform->setDefault('questionbankcmid', 0);
+
         $options = $this->get_category_options();
-        if (count($options) <= 1) {
+        if (empty($options)) {
             $mform->addElement('static', 'nobanks', '', get_string('nobanks', 'rememberme'));
         }
 
         $existing = $this->get_existing_band_count();
         $repeats = max(self::BAND_REPEAT_CHUNK, $existing + 1);
 
+        // One band, several categories. An autocomplete rather than a plain
+        // multiple select, because a bank can hold a great many categories and
+        // the teacher usually knows the name of the one they are after.
         $elements = [
-            $mform->createElement('select', 'bandcategory', get_string('band', 'rememberme'), $options),
+            $mform->createElement(
+                'autocomplete',
+                'bandcategory',
+                get_string('bandcategories', 'rememberme'),
+                $options,
+                ['multiple' => true, 'noselectionstring' => get_string('choosecategory', 'rememberme')]
+            ),
             $mform->createElement(
                 'advcheckbox',
                 'bandsubcategories',
@@ -102,7 +122,6 @@ class mod_rememberme_mod_form extends moodleform_mod {
             $elements,
             $repeats,
             [
-                'bandcategory' => ['type' => PARAM_INT],
                 'bandsubcategories' => ['type' => PARAM_INT],
             ],
             'bandrepeats',
@@ -115,6 +134,7 @@ class mod_rememberme_mod_form extends moodleform_mod {
         $mform->addElement('select', 'unlockmode', get_string('unlockmode', 'rememberme'), [
             bands::MODE_TIME => get_string('unlockmode_time', 'rememberme'),
             bands::MODE_MASTERY => get_string('unlockmode_mastery', 'rememberme'),
+            bands::MODE_EXHAUSTED => get_string('unlockmode_exhausted', 'rememberme'),
         ]);
         $mform->addHelpButton('unlockmode', 'unlockmode', 'rememberme');
         $mform->setDefault('unlockmode', bands::MODE_TIME);
@@ -227,6 +247,11 @@ class mod_rememberme_mod_form extends moodleform_mod {
         $mform->setType('graceearnrate', PARAM_FLOAT);
         $mform->setDefault('graceearnrate', 0.25);
         $mform->addHelpButton('graceearnrate', 'graceearnrate', 'rememberme');
+
+        $mform->addElement('text', 'ontimegrace', get_string('ontimegrace', 'rememberme'), ['size' => 5]);
+        $mform->setType('ontimegrace', PARAM_FLOAT);
+        $mform->setDefault('ontimegrace', 0.5);
+        $mform->addHelpButton('ontimegrace', 'ontimegrace', 'rememberme');
     }
 
     /**
@@ -276,23 +301,32 @@ class mod_rememberme_mod_form extends moodleform_mod {
     }
 
     /**
-     * Build the question category options for the band selectors.
+     * The question banks this course can draw on.
      *
-     * Categories in Moodle 5.x live in the module context of a question bank, so
-     * the options are grouped by the bank they belong to rather than presented
-     * as one flat list.
-     *
-     * @return array Options keyed by category id.
+     * @return array Options keyed by course module id, zero meaning any bank.
      */
-    protected function get_category_options(): array {
-        $options = [0 => get_string('choosecategory', 'rememberme')];
+    protected function get_bank_options(): array {
+        $options = [0 => get_string('anybank', 'rememberme')];
 
-        $courseid = $this->current->course ?? ($this->_course->id ?? 0);
-        if (empty($courseid)) {
-            return $options;
+        foreach ($this->get_banks() as $bank) {
+            $options[(int)$bank->cminfo->id] = $bank->cminfo->get_formatted_name();
         }
 
-        $banks = array_merge(
+        return $options;
+    }
+
+    /**
+     * The banks available to this course, shared and private alike.
+     *
+     * @return array Bank records.
+     */
+    protected function get_banks(): array {
+        $courseid = $this->current->course ?? ($this->_course->id ?? 0);
+        if (empty($courseid)) {
+            return [];
+        }
+
+        return array_merge(
             question_bank_helper::get_activity_instances_with_shareable_questions(
                 [$courseid],
                 [],
@@ -306,16 +340,35 @@ class mod_rememberme_mod_form extends moodleform_mod {
                 true
             )
         );
+    }
 
-        foreach ($banks as $bank) {
+    /**
+     * Question category options for the band selectors.
+     *
+     * Categories live in the module context of a question bank in Moodle 5.x, so
+     * they are grouped by the bank they belong to. When the teacher has narrowed
+     * the activity to one bank, only that bank's categories are offered: a course
+     * with several banks otherwise produces a list nobody can find anything in.
+     *
+     * @return array Options keyed by category id.
+     */
+    protected function get_category_options(): array {
+        $options = [];
+        $chosenbank = (int)($this->current->questionbankcmid ?? 0);
+
+        foreach ($this->get_banks() as $bank) {
+            $bankcmid = (int)$bank->cminfo->id;
+            if ($chosenbank > 0 && $bankcmid !== $chosenbank) {
+                continue;
+            }
+
             $bankname = $bank->cminfo->get_formatted_name();
             foreach ($bank->questioncategories as $category) {
                 $categoryid = (int)($category->id ?? 0);
                 if ($categoryid <= 0) {
                     continue;
                 }
-                $name = $category->name ?? '';
-                $options[$categoryid] = $bankname . ': ' . format_string($name);
+                $options[$categoryid] = $bankname . ': ' . format_string($category->name ?? '');
             }
         }
 
@@ -364,11 +417,26 @@ class mod_rememberme_mod_form extends moodleform_mod {
             return;
         }
 
-        $bands = $DB->get_records('rememberme_bands', ['rememberme' => $this->current->id], 'sortorder ASC');
-        $index = 0;
+        $bands = $DB->get_records(
+            'rememberme_bands',
+            ['rememberme' => $this->current->id],
+            'bandnumber ASC, sortorder ASC'
+        );
+
+        $grouped = [];
+        $subcategories = [];
         foreach ($bands as $band) {
-            $defaultvalues['bandcategory[' . $index . ']'] = $band->questioncategoryid;
-            $defaultvalues['bandsubcategories[' . $index . ']'] = $band->includesubcategories;
+            $grouped[(int)$band->bandnumber][] = (int)$band->questioncategoryid;
+            // The subcategory choice belongs to the band, so the first row in a
+            // band decides it for the whole band.
+            $subcategories[(int)$band->bandnumber] ??= (int)$band->includesubcategories;
+        }
+        ksort($grouped);
+
+        $index = 0;
+        foreach ($grouped as $bandnumber => $categoryids) {
+            $defaultvalues['bandcategory[' . $index . ']'] = $categoryids;
+            $defaultvalues['bandsubcategories[' . $index . ']'] = $subcategories[$bandnumber];
             $index++;
         }
 
@@ -424,12 +492,33 @@ class mod_rememberme_mod_form extends moodleform_mod {
             }
         }
 
-        $chosen = array_filter((array)($data['bandcategory'] ?? []));
-        if (empty($chosen)) {
-            $errors['bandcategory[0]'] = get_string('errornobands', 'rememberme');
+        // Each band is now a set of categories, so the checks are across bands
+        // as well as within them: a category used in two bands would be
+        // introduced twice and unlock nothing the second time.
+        $seen = [];
+        $anychosen = false;
+        foreach ((array)($data['bandcategory'] ?? []) as $index => $categoryids) {
+            $categoryids = array_filter(array_map('intval', (array)$categoryids));
+            if (empty($categoryids)) {
+                continue;
+            }
+            $anychosen = true;
+
+            if (count($categoryids) !== count(array_unique($categoryids))) {
+                $errors['bandcategory[' . $index . ']'] = get_string('errorduplicateband', 'rememberme');
+                continue;
+            }
+            foreach ($categoryids as $categoryid) {
+                if (isset($seen[$categoryid])) {
+                    $errors['bandcategory[' . $index . ']'] = get_string('errorduplicateband', 'rememberme');
+                    break;
+                }
+                $seen[$categoryid] = true;
+            }
         }
-        if (count($chosen) !== count(array_unique($chosen))) {
-            $errors['bandcategory[0]'] = get_string('errorduplicateband', 'rememberme');
+
+        if (!$anychosen) {
+            $errors['bandcategory[0]'] = get_string('errornobands', 'rememberme');
         }
 
         foreach ((array)($data['suspensionstart'] ?? []) as $index => $start) {

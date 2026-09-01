@@ -157,19 +157,28 @@ function rememberme_save_bands(stdClass $data): void {
 
     $DB->delete_records('rememberme_bands', ['rememberme' => $data->id]);
 
-    $sortorder = 0;
-    foreach ((array)$data->bandcategory as $index => $categoryid) {
-        $categoryid = (int)$categoryid;
-        if ($categoryid <= 0) {
+    // A band is a set of categories sharing a band number. Bands are numbered
+    // as they are saved, skipping any the teacher left empty, so deleting the
+    // middle band closes the gap rather than leaving a level with nothing in it.
+    $bandnumber = 1;
+    foreach ((array)$data->bandcategory as $index => $categoryids) {
+        $categoryids = array_values(array_unique(array_filter(array_map('intval', (array)$categoryids))));
+        if (empty($categoryids)) {
             continue;
         }
-        $DB->insert_record('rememberme_bands', (object)[
-            'rememberme' => $data->id,
-            'sortorder' => $sortorder,
-            'questioncategoryid' => $categoryid,
-            'includesubcategories' => empty($data->bandsubcategories[$index]) ? 0 : 1,
-        ]);
-        $sortorder++;
+
+        $sortorder = 0;
+        foreach ($categoryids as $categoryid) {
+            $DB->insert_record('rememberme_bands', (object)[
+                'rememberme' => $data->id,
+                'bandnumber' => $bandnumber,
+                'sortorder' => $sortorder,
+                'questioncategoryid' => $categoryid,
+                'includesubcategories' => empty($data->bandsubcategories[$index]) ? 0 : 1,
+            ]);
+            $sortorder++;
+        }
+        $bandnumber++;
     }
 }
 

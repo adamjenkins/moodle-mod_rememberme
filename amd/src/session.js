@@ -39,6 +39,7 @@ const SELECTORS = {
     progressbar: '[data-region="rememberme-progressbar"]',
     week: '[data-region="rememberme-week"]',
     streak: '[data-region="rememberme-streak"]',
+    celebration: '[data-region="rememberme-celebration"]',
     audiotoggle: '[data-action="toggle-audio"]',
 };
 
@@ -273,6 +274,10 @@ class Session {
             this.updateWeek(result.weekdone, result.weektarget, result.streak);
             this.announce(result.correct);
 
+            if (result.weekcleared) {
+                this.celebrateWeek(result.streak);
+            }
+
             this.replaceQuestion(result.html, result.javascript);
 
             // The pause is longer after an incorrect answer because there is
@@ -401,6 +406,51 @@ class Session {
                     return null;
                 });
         }
+    }
+
+    /**
+     * Mark the moment the learner finishes a week.
+     *
+     * Fired on the transition, not on the state, so somebody who carries on
+     * working is congratulated once rather than after every further answer.
+     *
+     * The message is written into the live region as well as shown, because a
+     * congratulation nobody hears is not a congratulation. The animation is
+     * suppressed for anyone who has asked for reduced motion; the message still
+     * appears.
+     *
+     * @param {Number} streak Consecutive weeks cleared, including this one.
+     */
+    celebrateWeek(streak) {
+        const region = this.root.querySelector(SELECTORS.celebration);
+        if (!region) {
+            return;
+        }
+
+        const key = streak > 1 ? 'weekclearedstreak' : 'weekcleared';
+        const param = streak > 1 ? streak : null;
+
+        getString(key, 'rememberme', param)
+            .then((text) => {
+                region.textContent = text;
+                region.hidden = false;
+
+                const reduced = window.matchMedia
+                    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                if (!reduced) {
+                    region.classList.remove('rememberme-celebrate');
+                    // Reading offsetWidth restarts the animation if the learner
+                    // clears two weeks without reloading the page.
+                    void region.offsetWidth;
+                    region.classList.add('rememberme-celebrate');
+                }
+
+                this.cue.play(true);
+                return text;
+            })
+            .catch(() => {
+                return null;
+            });
     }
 
     /**

@@ -101,6 +101,14 @@ class submit_answer extends external_api {
         $scheduler = $session->get_scheduler();
         $progress = helper::week_progress($scheduler, (int)$USER->id);
 
+        // Whether this answer was the one that finished the week. The client
+        // celebrates on the transition rather than on the state, so a learner
+        // who keeps going afterwards is congratulated once, not on every
+        // subsequent answer.
+        $weekcleared = $progress['target'] > 0
+            && $progress['done'] >= $progress['target']
+            && ($progress['done'] - 1) < $progress['target'];
+
         return [
             'correct' => $result['correct'],
             'fraction' => $result['fraction'],
@@ -114,6 +122,7 @@ class submit_answer extends external_api {
             'weekdone' => $progress['done'],
             'weektarget' => $progress['target'],
             'streak' => $progress['streak'],
+            'weekcleared' => $weekcleared,
         ];
     }
 
@@ -134,6 +143,7 @@ class submit_answer extends external_api {
             'weekdone' => new external_value(PARAM_INT, 'Items completed this week'),
             'weektarget' => new external_value(PARAM_INT, 'This week\'s frozen target'),
             'streak' => new external_value(PARAM_INT, 'Consecutive weeks cleared'),
+            'weekcleared' => new external_value(PARAM_BOOL, 'Whether this answer completed the week'),
         ]);
     }
 }

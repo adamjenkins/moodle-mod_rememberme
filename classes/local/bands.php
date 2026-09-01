@@ -43,6 +43,16 @@ class bands {
     /** @var int The next band unlocks when the current one is sufficiently established. */
     public const MODE_MASTERY = 1;
 
+    /**
+     * @var int The next band unlocks once nothing in the current one is unseen.
+     *
+     * Coverage rather than mastery: the learner has met every question in the
+     * band at least once, whether or not they answered any of them well. It
+     * paces introduction without asking anybody to prove anything, which suits a
+     * course where the point is to have seen the whole syllabus.
+     */
+    public const MODE_EXHAUSTED = 2;
+
     /** @var string The learner had not earned an unlock. */
     public const REASON_NONE = 'none';
 
@@ -51,6 +61,9 @@ class bands {
 
     /** @var string Unlocked by meeting the mastery threshold. */
     public const REASON_MASTERY = 'mastery';
+
+    /** @var string Unlocked because nothing in the band was left unseen. */
+    public const REASON_EXHAUSTED = 'exhausted';
 
     /** @var string Unlocked by the backstop, having stalled on one band. */
     public const REASON_BACKSTOP = 'backstop';
@@ -147,7 +160,17 @@ class bands {
         $wanted = $currentlevel;
         $reason = self::REASON_NONE;
 
-        if ($mode === self::MODE_TIME) {
+        if ($mode === self::MODE_EXHAUSTED) {
+            // Nothing left to meet for the first time. Note this asks about
+            // unseen items only: an item answered once counts as seen however
+            // badly it went, because revision is not what this gate is about.
+            $banditemcount = (int)($context['banditemcount'] ?? 0);
+            $unseen = (int)($context['unseeninband'] ?? 0);
+            if ($banditemcount > 0 && $unseen === 0) {
+                $wanted = $currentlevel + 1;
+                $reason = self::REASON_EXHAUSTED;
+            }
+        } else if ($mode === self::MODE_TIME) {
             $earned = self::level_for_time(
                 (float)($context['effectivedayssincefirst'] ?? 0.0),
                 (float)($context['intervaldays'] ?? 7.0),

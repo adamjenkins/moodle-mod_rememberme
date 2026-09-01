@@ -62,13 +62,23 @@ class pool {
             $records = $DB->get_records(
                 'rememberme_bands',
                 ['rememberme' => $this->instance->id],
-                'sortorder ASC'
+                'bandnumber ASC, sortorder ASC'
             );
-            // Re-index from 1 so the array key is the band level.
+
+            // A band may draw on several categories, so rows are grouped by
+            // band number rather than being one row each. The numbers are then
+            // compacted to 1..n, so a teacher deleting the middle band does not
+            // leave a hole that unlocking would have to step over.
+            $grouped = [];
+            foreach ($records as $record) {
+                $grouped[(int)$record->bandnumber][] = $record;
+            }
+            ksort($grouped);
+
             $this->bands = [];
             $level = 1;
-            foreach ($records as $record) {
-                $this->bands[$level] = $record;
+            foreach ($grouped as $rows) {
+                $this->bands[$level] = $rows;
                 $level++;
             }
         }
@@ -95,10 +105,13 @@ class pool {
         if (!isset($bands[$level])) {
             return [];
         }
-        $band = $bands[$level];
-        $ids = [(int)$band->questioncategoryid];
-        if (!empty($band->includesubcategories)) {
-            $ids = array_merge($ids, self::descendant_category_ids((int)$band->questioncategoryid));
+
+        $ids = [];
+        foreach ($bands[$level] as $row) {
+            $ids[] = (int)$row->questioncategoryid;
+            if (!empty($row->includesubcategories)) {
+                $ids = array_merge($ids, self::descendant_category_ids((int)$row->questioncategoryid));
+            }
         }
         return array_values(array_unique($ids));
     }

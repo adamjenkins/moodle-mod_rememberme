@@ -71,6 +71,14 @@
     <div class="visually-hidden" role="status" aria-live="polite" data-region="rememberme-status"></div>
 
     {{!
+        The celebration is a live region so it is announced, not merely seen.
+        It starts hidden and is revealed only when a week is actually cleared.
+    }}
+    <div class="rememberme-celebration alert alert-success text-center"
+         role="status" aria-live="polite"
+         data-region="rememberme-celebration" hidden></div>
+
+    {{!
         The question must live inside a real form: core's own question JavaScript
         reaches for button.form.dataset, and the rendered question is a div, not
         a form. mod_quiz wraps its questions the same way. Double submit

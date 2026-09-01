@@ -58,6 +58,23 @@ class scheduler {
     public const LEARNING_STEP = 600;
 
     /**
+     * @var int How long after falling due an answer still counts as punctual.
+     *
+     * A day, because the activity is meant to be visited daily and expecting
+     * anyone to answer within the hour would reward availability rather than
+     * habit.
+     */
+    public const ONTIME_WINDOW = DAYSECS;
+
+    /**
+     * @var int Punctual answers needed before punctuality is scored at all.
+     *
+     * Below this the proportion is noise: two lucky answers should not earn a
+     * term's insurance.
+     */
+    public const ONTIME_MIN_SAMPLES = 10;
+
+    /**
      * @var int Lapses after which the short learning step is abandoned.
      *
      * Without this an item the learner simply cannot get right would return
@@ -376,7 +393,11 @@ class scheduler {
         );
         $seen = array_flip(array_map('intval', $seen));
 
-        $bandentries = $this->pool->get_entries_in_band($bandlevel);
+        // New items come from the current band and every band below it. A
+        // learner who moved on before exhausting an earlier band still has
+        // unseen questions there, and leaving them stranded would mean the
+        // syllabus was never covered even though the learner kept up.
+        $bandentries = $this->pool->get_entries_up_to_band($bandlevel);
         foreach ($bandentries as $qbeid => $entry) {
             if (count($queue) >= $limit || $newallowed <= 0) {
                 break;
@@ -548,6 +569,10 @@ class scheduler {
             'latency' => $latencyms,
             'weekno' => $weekno,
             'insuspension' => $insuspension ? 1 : 0,
+            // What the item was due at, as it stood when answered. Kept on the
+            // row because the schedule record moves on immediately afterwards,
+            // so punctuality cannot be reconstructed from live state later.
+            'wasdue' => $existing ? (int)$existing->duedate : 0,
             'timecreated' => $now,
         ]);
 
@@ -846,14 +871,22 @@ class scheduler {
                 && (int)$state->lastunlockwindow === (int)$window['timestart'],
         ];
 
-        if ((int)$this->instance->unlockmode === bands::MODE_MASTERY) {
+        $mode = (int)$this->instance->unlockmode;
+        if ($mode === bands::MODE_MASTERY || $mode === bands::MODE_EXHAUSTED) {
             $bandentries = $this->pool->get_entries_in_band((int)$state->bandlevel);
             $context['banditemcount'] = count($bandentries);
-            $context['stabilities'] = $this->stabilities_for_entries($userid, array_keys($bandentries));
+            $stabilities = $this->stabilities_for_entries($userid, array_keys($bandentries));
+            $context['stabilities'] = $stabilities;
+            // An unseen item has no stability at all, which is exactly what the
+            // exhausted gate asks about.
+            $context['unseeninband'] = count(array_filter(
+                $stabilities,
+                static fn($stability): bool => $stability === null
+            ));
         }
 
         [$newlevel, $reason] = bands::evaluate(
-            (int)$this->instance->unlockmode,
+            $mode,
             (int)$state->bandlevel,
             $bandcount,
             $context
@@ -1028,7 +1061,11 @@ class scheduler {
     }
 
     /**
-     * Grace the learner has earned through voluntary work during suspensions.
+     * Grace the learner has earned, before the cap is applied.
+     *
+     * Two sources, both rewarding effort rather than accuracy: voluntary work
+     * during a break, and answering items when they fall due rather than
+     * letting them go stale.
      *
      * @param int $userid The learner.
      * @return float Earned grace, before capping.
@@ -1042,10 +1079,75 @@ class scheduler {
             'insuspension' => 1,
         ]);
 
-        return grace::earned_from_work(
+        $fromwork = grace::earned_from_work(
             $answered,
             (int)$this->instance->sessionsize,
             (float)$this->instance->graceearnrate
         );
+
+        return $fromwork + $this->ontime_grace($userid);
+    }
+
+    /**
+     * How punctually the learner answers items that have fallen due.
+     *
+     * This is the measure of a study habit that cannot be faked by turning up.
+     * Opening the activity is free, so counting visits would reward the
+     * appearance of diligence; answering an item close to when it came due is
+     * only possible by actually returning while the queue is fresh, and it is
+     * precisely the behaviour that makes spaced repetition work. A learner who
+     * saves everything for one sitting a fortnight fails it by construction,
+     * because their items sat overdue for days.
+     *
+     * Items being met for the first time are excluded: they were never due, so
+     * there is no punctuality to judge.
+     *
+     * @param int $userid The learner.
+     * @return array Two element list of punctual answers and answers that could be judged.
+     */
+    public function ontime_counts(int $userid): array {
+        global $DB;
+
+        $sql = "SELECT COUNT(1) AS judged,
+                       SUM(CASE WHEN timecreated <= wasdue + :window THEN 1 ELSE 0 END) AS punctual
+                  FROM {rememberme_review_log}
+                 WHERE rememberme = :instanceid
+                   AND userid = :userid
+                   AND wasdue > 0
+                   AND (latency IS NULL OR latency >= :minlatency)";
+
+        $row = $DB->get_record_sql($sql, [
+            'window' => self::ONTIME_WINDOW,
+            'instanceid' => $this->instance->id,
+            'userid' => $userid,
+            'minlatency' => self::MIN_ENGAGED_LATENCY,
+        ]);
+
+        return [(int)($row->punctual ?? 0), (int)($row->judged ?? 0)];
+    }
+
+    /**
+     * Grace earned by answering items when they fall due.
+     *
+     * Paid in grace rather than in marks on purpose. Grace only ever fills a
+     * gap, so a learner who never has a bad week gains nothing from it, and it
+     * cannot lift anybody above a full mark. That makes it a reward for the
+     * habit without turning the habit into a second thing to be graded on.
+     *
+     * @param int $userid The learner.
+     * @return float Grace earned through punctuality.
+     */
+    public function ontime_grace(int $userid): float {
+        $maximum = (float)($this->instance->ontimegrace ?? 0);
+        if ($maximum <= 0.0) {
+            return 0.0;
+        }
+
+        [$punctual, $judged] = $this->ontime_counts($userid);
+        if ($judged < self::ONTIME_MIN_SAMPLES) {
+            return 0.0;
+        }
+
+        return $maximum * ($punctual / $judged);
     }
 }

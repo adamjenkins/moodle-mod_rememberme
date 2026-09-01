@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.1] - 2026-09-01
 
+### Added
+
+- A band may now draw on several question categories, and the settings form
+  offers a question bank to pick them from rather than one long list across
+  every bank the course can reach.
+- New questions are introduced from the learner's current band **and every band
+  below it**, so a category left unfinished before moving on is no longer
+  stranded.
+- A third way for the next band to unlock: when every question in the current
+  band has been seen at least once. Coverage rather than mastery, so it paces
+  introduction without asking anybody to prove anything.
+- Answering questions when they fall due earns grace, up to a configurable
+  maximum. This rewards returning while the queue is fresh, which is what makes
+  spaced repetition work, and cannot be earned by simply opening the activity.
+  Paid in grace rather than marks, so it can only repair a bad week and never
+  lifts anybody above full marks. Set the maximum to zero to switch it off.
+- Finishing a week is now celebrated in the session, announced to assistive
+  technology as well as shown, and suppressed for anyone who has asked for
+  reduced motion.
+
 ### Changed
 
 - Weekly credit is now one point per distinct question engaged with, not one per
