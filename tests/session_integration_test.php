@@ -99,6 +99,122 @@ final class session_integration_test extends \advanced_testcase {
     }
 
     /**
+     * New items are drawn at random rather than in pool order.
+     *
+     * Twenty questions and a session of three: if the draw were ordered, every
+     * session would open on the same question. The test asserts the weaker,
+     * reliable thing — that the set drawn is not always the same one — because
+     * asserting a particular shuffle would only be asserting the seed.
+     *
+     * @return void
+     */
+    public function test_new_items_are_drawn_at_random(): void {
+        global $DB;
+
+        $qbank = $this->getDataGenerator()->create_module('qbank', ['course' => $this->course->id]);
+        $category = question_get_default_category(\context_module::instance($qbank->cmid)->id);
+        $qgen = $this->getDataGenerator()->get_plugin_generator('core_question');
+        for ($i = 0; $i < 20; $i++) {
+            $qgen->create_question('shortanswer', null, ['category' => $category->id, 'idnumber' => 'r' . $i]);
+        }
+
+        $module = $this->getDataGenerator()->create_module('rememberme', [
+            'course' => $this->course->id,
+            'sessionsize' => 3,
+            'newperday' => 3,
+        ]);
+        $this->getDataGenerator()->get_plugin_generator('mod_rememberme')
+            ->create_band((int)$module->id, (int)$category->id, 0);
+        $instance = $DB->get_record('rememberme', ['id' => $module->id], '*', MUST_EXIST);
+
+        $scheduler = new scheduler($instance);
+        $seen = [];
+        for ($run = 0; $run < 12; $run++) {
+            $queue = $scheduler->get_due_questions((int)$this->student->id);
+            $this->assertCount(3, $queue);
+            $seen[implode(',', array_map(static fn($e): int => (int)$e->questionbankentryid, $queue))] = true;
+        }
+
+        $this->assertGreaterThan(
+            1,
+            count($seen),
+            'twelve draws of three from twenty returned the same three every time, so the draw is not shuffled'
+        );
+    }
+
+    /**
+     * Choices are shuffled whatever the question was authored to do.
+     *
+     * @return void
+     */
+    public function test_answer_choices_are_always_shuffled(): void {
+        global $DB;
+
+        $qbank = $this->getDataGenerator()->create_module('qbank', ['course' => $this->course->id]);
+        $category = question_get_default_category(\context_module::instance($qbank->cmid)->id);
+        $this->getDataGenerator()->get_plugin_generator('core_question')->create_question(
+            'multichoice',
+            'one_of_four',
+            ['category' => $category->id, 'idnumber' => 'mc1', 'shuffleanswers' => 0]
+        );
+
+        $module = $this->getDataGenerator()->create_module('rememberme', ['course' => $this->course->id]);
+        $this->getDataGenerator()->get_plugin_generator('mod_rememberme')
+            ->create_band((int)$module->id, (int)$category->id, 0);
+        $instance = $DB->get_record('rememberme', ['id' => $module->id], '*', MUST_EXIST);
+
+        $session = new session($instance, \context_module::instance($module->cmid));
+        $this->assertTrue($session->start((int)$this->student->id));
+
+        $slot = $session->next_slot();
+        $question = $session->get_quba()->get_question($slot, false);
+
+        $this->assertTrue(
+            $question->shuffleanswers,
+            'the question was authored with shuffling off and must have been overridden'
+        );
+    }
+
+    /**
+     * An unanswerable response leaves the slot answerable.
+     *
+     * Finishing the question in the engine while recording nothing here would
+     * queue a dead question forever, which is the one outcome a learner cannot
+     * recover from.
+     *
+     * @return void
+     */
+    public function test_an_empty_response_does_not_strand_the_slot(): void {
+        global $DB;
+
+        $session = new session($this->instance_record(), $this->context);
+        $this->assertTrue($session->start((int)$this->student->id));
+        $slot = $session->next_slot();
+
+        try {
+            $session->process_response($slot, []);
+            $this->fail('an empty response should have been refused');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('errorincompleteresponse', $e->errorcode);
+        }
+
+        $this->assertSame(
+            $slot,
+            $session->next_slot(),
+            'the slot is still the one to answer'
+        );
+
+        // And it really is still answerable: a reloaded session grades it.
+        $reloaded = new session($this->instance_record(), $this->context);
+        $this->assertTrue($reloaded->load_or_start((int)$this->student->id));
+        $prefix = $reloaded->get_quba()->get_field_prefix($slot);
+        $result = $reloaded->process_response($slot, [$prefix . 'answer' => 'anything']);
+
+        $this->assertIsFloat($result['fraction']);
+        $this->assertNotSame($slot, $reloaded->next_slot(), 'the graded slot has moved on');
+    }
+
+    /**
      * The pool resolves questions out of a real 5.x question bank.
      */
     public function test_pool_resolves_questions_from_the_bank(): void {

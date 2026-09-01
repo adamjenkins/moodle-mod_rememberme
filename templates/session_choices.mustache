@@ -1,0 +1,77 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template mod_rememberme/session_choices
+
+    A single response multiple choice question, presented as a hand of options
+    the learner clicks. There is no submit button: the click is the answer.
+
+    The same markup carries the question and its verdict, because the verdict is
+    a state of the options rather than a separate screen. The letter on each
+    option becomes a tick or a cross in place, so the result is never carried by
+    colour alone.
+
+    Classes required for JS:
+    * none
+
+    Data attributes required for JS:
+    * data-action="choose" on each option
+    * data-name and data-value on each option
+
+    Context variables required for this template:
+    * name String The response field name the answer is submitted under
+    * questiontext String The question, already formatted
+    * graded Boolean Whether the answer is in
+    * verdict String The result, shown once graded
+    * choices Array The options
+        * value Number The value to submit
+        * text String The option, already formatted
+        * token String The letter, or the verdict mark once graded
+        * isright Boolean Whether this is the right answer
+        * iswrong Boolean Whether this is the wrong answer the learner chose
+        * isfaded Boolean Whether this option is no longer in play
+
+    Example context (json):
+    {
+        "name": "q1:1_answer",
+        "questiontext": "<p>Which planet is closest to the Sun?</p>",
+        "graded": true,
+        "verdict": "Not quite",
+        "choices": [
+            {"value": 0, "text": "Mercury", "token": "✓", "isright": true, "iswrong": false, "isfaded": false},
+            {"value": 1, "text": "Earth", "token": "✕", "isright": false, "iswrong": true, "isfaded": false},
+            {"value": 2, "text": "Venus", "token": "C", "isright": false, "iswrong": false, "isfaded": true}
+        ]
+    }
+}}
+<div class="rmm-hand">
+    <div class="rmm-prompt">{{{questiontext}}}</div>
+
+    {{#choices}}
+        <button type="button"
+                class="rmm-choice{{#isright}} is-right{{/isright}}{{#iswrong}} is-wrong{{/iswrong}}{{#isfaded}} is-faded{{/isfaded}}"
+                data-action="choose" data-name="{{name}}" data-value="{{value}}"
+                {{#graded}}disabled{{/graded}}>
+            <span class="rmm-token" aria-hidden="true">{{token}}</span>
+            <span class="rmm-choice-text">{{{text}}}</span>
+        </button>
+    {{/choices}}
+
+    {{#graded}}
+        <p class="rmm-verdict">{{verdict}}</p>
+    {{/graded}}
+</div>

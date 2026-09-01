@@ -94,10 +94,16 @@ class mobile {
         $quba = $session->get_quba();
         [$answered, $total] = $session->get_progress();
 
+        $choices = $session->get_choices($slot);
+
         $data['hasquestion'] = true;
         $data['answered'] = $answered;
         $data['total'] = $total;
         $data['message'] = '';
+        // A single response multiple choice question is presented as a set of
+        // options the learner taps. Everything else is handed to the app's own
+        // question component, which knows how to build native controls for it.
+        $data['haschoices'] = $choices !== null;
 
         // The shape the app's core-question component expects, which is
         // CoreQuestionQuestionWSData in the app source. Its own comment notes
@@ -112,13 +118,23 @@ class mobile {
             'flagged' => false,
         ];
 
-        return self::view($data, [
+        $otherdata = [
             'question' => json_encode($question),
             'slot' => (string)$slot,
             'cmid' => (string)$cmid,
             'pausecorrect' => (string)$instance->pausecorrect,
             'pauseincorrect' => (string)$instance->pauseincorrect,
-        ], file_get_contents($CFG->dirroot . '/mod/rememberme/mobile/session.js'));
+        ];
+        if ($choices !== null) {
+            $otherdata['choices'] = json_encode($choices);
+            // The verdict wording travels with the data rather than the
+            // template, because the script announces it after the answer comes
+            // back and a site plugin script cannot resolve strings itself.
+            $otherdata['rightlabel'] = get_string('correct', 'rememberme');
+            $otherdata['wronglabel'] = get_string('notquite', 'rememberme');
+        }
+
+        return self::view($data, $otherdata, file_get_contents($CFG->dirroot . '/mod/rememberme/mobile/session.js'));
     }
 
     /**

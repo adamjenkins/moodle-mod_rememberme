@@ -123,5 +123,26 @@ function xmldb_rememberme_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026090105, 'rememberme');
     }
 
+    if ($oldversion < 2026090106) {
+        // How many options a multiple choice question may present. Existing
+        // activities keep every option, which is what they have always done.
+        $table = new xmldb_table('rememberme');
+        $field = new xmldb_field(
+            'maxchoices',
+            XMLDB_TYPE_INTEGER,
+            '4',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            '0',
+            'ontimegrace'
+        );
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2026090106, 'rememberme');
+    }
+
     return true;
 }

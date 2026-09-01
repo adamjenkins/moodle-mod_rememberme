@@ -32,6 +32,7 @@
         <FIELD NAME="completionweeks" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Custom completion rule: weeks the learner must clear. Zero disables the rule."/>
         <FIELD NAME="questionbankcmid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Course module id of the question bank whose categories the settings form offers. Zero means every bank the course can reach."/>
         <FIELD NAME="ontimegrace" TYPE="number" LENGTH="10" NOTNULL="true" DEFAULT="0.5000" SEQUENCE="false" DECIMALS="4" COMMENT="Most grace a learner can earn by answering items when they fall due rather than late. Zero switches the reward off."/>
+        <FIELD NAME="maxchoices" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Most answer options to present for a multiple choice question, counting the right one. Surplus wrong options are dropped at random. Zero presents every option."/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>

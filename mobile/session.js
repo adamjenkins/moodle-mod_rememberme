@@ -25,14 +25,43 @@ this.question = null;
 this.submitting = false;
 this.feedbackShown = false;
 
-// The question arrives as JSON on CONTENT_OTHERDATA, because otherdata values
-// cross the wire as strings. The template guards its binding with *ngIf until
-// this has run.
-try {
-    this.question = JSON.parse(this.CONTENT_OTHERDATA.question);
-} catch (error) {
-    this.question = null;
+// The question travels on CONTENT_OTHERDATA. It leaves the server as a JSON
+// string, because every otherdata value crosses the wire as one, but it has
+// usually been parsed again before it reaches here: the app parses any
+// otherdata value whose first character is '{' or '[' as it reads the content
+// (CoreSitePluginsProvider.getContent). Parsing a second time throws on the
+// object and leaves the question null, and the template's *ngIf then renders a
+// session with no question in it. So take whichever form actually arrived.
+var rawquestion = this.CONTENT_OTHERDATA ? this.CONTENT_OTHERDATA.question : null;
+
+if (typeof rawquestion === 'string') {
+    try {
+        this.question = JSON.parse(rawquestion);
+    } catch (error) {
+        this.question = null;
+    }
+} else {
+    this.question = rawquestion || null;
 }
+
+// The tappable options, for a question presented as a hand rather than through
+// the app's question component. Absent for every other question type. The app
+// has already turned the JSON into an object, as it does for the question.
+this.choices = this.CONTENT_OTHERDATA.choices || null;
+if (typeof this.choices === 'string') {
+    try {
+        this.choices = JSON.parse(this.choices);
+    } catch (error) {
+        this.choices = null;
+    }
+}
+
+this.picked = null;
+this.answering = false;
+this.verdict = null;
+this.verdictLabel = '';
+this.rightLabel = this.CONTENT_OTHERDATA.rightlabel || '';
+this.wrongLabel = this.CONTENT_OTHERDATA.wronglabel || '';
 
 this.slot = parseInt(this.CONTENT_OTHERDATA.slot, 10);
 this.cmid = parseInt(this.CONTENT_OTHERDATA.cmid, 10);
@@ -40,19 +69,127 @@ this.pauseCorrect = parseInt(this.CONTENT_OTHERDATA.pausecorrect, 10) || 1200;
 this.pauseIncorrect = parseInt(this.CONTENT_OTHERDATA.pauseincorrect, 10) || 2500;
 
 /**
+ * The mark shown on an option: its letter, or the verdict once one is in.
+ *
+ * One element does the labelling and then the reporting, so the result never
+ * rests on colour alone, which matters both for colour blindness and for a
+ * phone screen in daylight.
+ *
+ * @param {Object} choice The option.
+ * @returns {String} A letter, a tick, or a cross.
+ */
+this.tokenFor = function(choice) {
+    if (!this.verdict) {
+        return choice.letter;
+    }
+    if (choice.value === this.choices.correctvalue) {
+        return '\u2713';
+    }
+    if (choice.value === this.picked) {
+        return '\u2715';
+    }
+
+    return choice.letter;
+};
+
+/**
+ * Answer by tapping an option.
+ *
+ * There is no confirmation step. A tap is worth one repetition at most: being
+ * wrong costs time and never marks, so the cost of a slip is that the question
+ * comes round again, which is cheaper than making every learner confirm every
+ * answer for the whole course.
+ *
+ * @param {Number} value The chosen option.
+ * @returns {Promise} Resolves once the verdict is on screen.
+ */
+this.chooseAnswer = async function(value) {
+    if (this.answering || this.verdict) {
+        return;
+    }
+
+    this.answering = true;
+    this.picked = value;
+    this.refresh();
+
+    try {
+        var site = this.CoreSitesProvider.getCurrentSite();
+        var result = await site.write('mod_rememberme_submit_answer', {
+            cmid: this.cmid,
+            slot: this.slot,
+            response: [{name: this.choices.name, value: String(value)}],
+        });
+
+        this.verdict = result.correct ? 'right' : 'wrong';
+        this.verdictLabel = result.correct ? this.rightLabel : this.wrongLabel;
+        this.refresh();
+
+        // Move on by itself. Asking for a second tap to continue would put the
+        // button back that this presentation exists to remove.
+        var component = this;
+        setTimeout(function() {
+            component.nextQuestion();
+        }, result.correct ? this.pauseCorrect : this.pauseIncorrect);
+    } catch (error) {
+        this.picked = null;
+        this.showError(error);
+        this.refresh();
+    } finally {
+        this.answering = false;
+    }
+};
+
+/**
+ * Report a failed web service call.
+ *
+ * @param {Object} error The error the app should show.
+ */
+this.showError = function(error) {
+    // CoreAlertsProvider is the current home of showError; older app versions
+    // only have CoreDomUtilsProvider, and a site plugin has to run on whatever
+    // the learner installed.
+    if (this.CoreAlertsProvider) {
+        this.CoreAlertsProvider.showError(error);
+    } else {
+        this.CoreDomUtilsProvider.showErrorModal(error);
+    }
+};
+
+/**
+ * Re draw after changing something the template binds to.
+ *
+ * A compiled site plugin component is not re rendered just because one of its
+ * properties changed: everything after an awaited web service call happens
+ * outside the change detection the tap started, so the screen keeps showing the
+ * state from before the answer was sent. The app hands every compiled component
+ * its own ChangeDetectorRef for exactly this.
+ */
+this.refresh = function() {
+    if (this.ChangeDetectorRef) {
+        this.ChangeDetectorRef.detectChanges();
+    }
+};
+
+/**
  * Find the form the question was rendered into.
  *
- * The app wraps each rendered question in a form so that its own helpers can
- * read the answers back out of it, the same way the web view does.
+ * The app builds native controls from the question and does not put them in a
+ * form of its own, so the template supplies one; the app's answer helper reads
+ * name and value pairs straight off form.elements, which reaches the native
+ * inputs Ionic renders inside its components.
+ *
+ * The search is anchored on componentContainer, which is the host element the
+ * app gives every compiled site plugin component. Falling back to a document
+ * wide search would be worse than finding nothing: the first form on the page
+ * belongs to some other part of the app, and reading answers out of it submits
+ * an empty response that is graded as a wrong answer.
  *
  * @returns {HTMLFormElement|null} The form, or null if it is not on screen yet.
  */
 this.findQuestionForm = function() {
-    var host = this.elementRef && this.elementRef.nativeElement
-        ? this.elementRef.nativeElement
-        : document;
-
-    return host.querySelector('form') || document.querySelector('core-question form');
+    return this.componentContainer
+        ? this.componentContainer.querySelector('form.mod_rememberme-question')
+        : null;
 };
 
 /**
@@ -97,12 +234,29 @@ this.submitAnswer = async function() {
         // web view applies automatically is left as an explicit tap here,
         // because an auto advance that fires while a thumb is still travelling
         // is worse on a phone than on a desktop.
-        this.question = Object.assign({}, this.question, {html: result.html});
+        //
+        // core-question reads its question once, in ngOnInit, and implements no
+        // ngOnChanges, so handing the same component a new object leaves the
+        // ungraded question on screen and the answer looks to have been
+        // swallowed. Clearing it first makes the template's *ngIf destroy the
+        // component, and restoring it in a later task builds a fresh one that
+        // reads the graded HTML. The behaviour buttons go with it: the graded
+        // HTML has no Check button, and a carried over one would offer to
+        // submit an answer that has already been marked.
+        var graded = Object.assign({}, this.question, {html: result.html});
+        delete graded.behaviourButtons;
+
+        this.question = null;
         this.feedbackShown = true;
+        this.refresh();
+
+        var component = this;
+        setTimeout(function() {
+            component.question = graded;
+            component.refresh();
+        });
     } catch (error) {
-        this.CoreAlertsProvider
-            ? this.CoreAlertsProvider.showError(error)
-            : this.CoreDomUtilsProvider.showErrorModal(error);
+        this.showError(error);
     } finally {
         this.submitting = false;
     }
@@ -115,6 +269,10 @@ this.submitAnswer = async function() {
  */
 this.nextQuestion = function() {
     this.feedbackShown = false;
+    this.picked = null;
+    this.verdict = null;
+    this.verdictLabel = '';
+    this.refresh();
 
     return this.updateContent(
         {cmid: this.cmid},

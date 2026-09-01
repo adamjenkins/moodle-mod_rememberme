@@ -205,6 +205,11 @@ class mod_rememberme_mod_form extends moodleform_mod {
         $mform->setDefault('newperday', 10);
         $mform->addHelpButton('newperday', 'newperday', 'rememberme');
 
+        $mform->addElement('text', 'maxchoices', get_string('maxchoices', 'rememberme'), ['size' => 5]);
+        $mform->setType('maxchoices', PARAM_INT);
+        $mform->setDefault('maxchoices', 0);
+        $mform->addHelpButton('maxchoices', 'maxchoices', 'rememberme');
+
         $mform->addElement('advcheckbox', 'audiocue', get_string('audiocue', 'rememberme'));
         $mform->setDefault('audiocue', 1);
         $mform->addHelpButton('audiocue', 'audiocue', 'rememberme');
@@ -473,6 +478,11 @@ class mod_rememberme_mod_form extends moodleform_mod {
         }
         if ($data['newperday'] < 0) {
             $errors['newperday'] = get_string('errornonnegative', 'rememberme');
+        }
+        // One option is not a question, and two is a coin toss dressed up as
+        // recall. Zero is the way to switch the limit off.
+        if ($data['maxchoices'] < 0 || $data['maxchoices'] === 1 || $data['maxchoices'] === 2) {
+            $errors['maxchoices'] = get_string('errormaxchoices', 'rememberme');
         }
         if ($data['activeweeks'] < 1) {
             $errors['activeweeks'] = get_string('errorpositive', 'rememberme');

@@ -1,4 +1,166 @@
-/* Remember Me: Moodle app styles. */
+/* Remember Me: Moodle app styles.
+
+   The study session is meant to read as a hand of cards rather than as an exam
+   paper, so the options are full width slabs the learner taps and there is no
+   submit button anywhere. Colour is taken from the app's own theme variables,
+   with fallbacks, so the activity belongs to whatever site it is opened on; the
+   identity here is carried by shape, weight and timing instead. */
+
 .mod-rememberme-due {
     font-weight: 600;
+}
+
+.rmm-hand {
+    padding: 4px 16px 24px;
+}
+
+/* The prompt is the hero. Moodle renders question text at body size, which is
+   the single thing that makes a study screen read as a test paper, so it is set
+   deliberately larger and tighter here. */
+.rmm-prompt {
+    display: block;
+    margin: 10px 0 22px;
+}
+
+/* Moodle sends the prompt as its own paragraph markup, so the type has to be
+   set on what actually carries the text as well as on the host element. */
+.rmm-prompt,
+.rmm-prompt p {
+    font-size: 1.5rem;
+    font-weight: 620;
+    line-height: 1.25;
+    letter-spacing: -0.015em;
+    color: var(--ion-text-color, #1c1c1e);
+}
+
+.rmm-prompt p {
+    margin: 0;
+}
+
+.rmm-choice {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    margin: 0 0 10px;
+    padding: 14px 16px 14px 12px;
+    border: 1px solid var(--ion-color-step-150, #e2e2e6);
+    border-radius: 14px;
+    background: var(--ion-item-background, #fff);
+    color: var(--ion-text-color, #1c1c1e);
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+
+    /* The spine stays colourless until there is a verdict to report. */
+    box-shadow: inset 3px 0 0 0 transparent;
+    transition: box-shadow 160ms ease, border-color 160ms ease, opacity 160ms ease, transform 100ms ease;
+}
+
+.rmm-choice:active:not([disabled]) {
+    transform: scale(0.985);
+}
+
+/* Every option is disabled once an answer is in, so the browser's own dimming
+   of a disabled control would flatten the difference between the options that
+   still matter and the ones that no longer do. The opacity is therefore stated
+   in both directions rather than left to the default. */
+.rmm-choice[disabled] {
+    cursor: default;
+    opacity: 1;
+}
+
+/* The token labels the option and then reports on it: a letter becomes a tick
+   or a cross in place, so the result never rests on colour alone. Squared off
+   rather than round, which is the shape every other list of options uses. */
+.rmm-token {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    background: var(--ion-color-step-100, #f0f0f3);
+    color: var(--ion-color-step-600, #5b5b62);
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.rmm-choice-text {
+    flex: 1 1 auto;
+    font-size: 1.05rem;
+    line-height: 1.35;
+}
+
+/* The verdict. Green and red are doing a job here rather than decorating: they
+   are the fastest way to read a result, and the token carries the same message
+   for anyone who cannot use them. */
+.rmm-choice.is-right {
+    border-color: #1b7f4b;
+    box-shadow: inset 3px 0 0 0 #1b7f4b;
+}
+
+.rmm-choice.is-right .rmm-token {
+    background: #1b7f4b;
+    color: #fff;
+}
+
+.rmm-choice.is-wrong {
+    border-color: #c0392b;
+    box-shadow: inset 3px 0 0 0 #c0392b;
+}
+
+.rmm-choice.is-wrong .rmm-token {
+    background: #c0392b;
+    color: #fff;
+}
+
+/* Everything that was not in play recedes, so the two options that matter are
+   what is left on screen. */
+.rmm-choice.is-faded,
+.rmm-choice.is-faded[disabled] {
+    opacity: 0.38;
+}
+
+.rmm-verdict {
+    margin: 16px 0 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--ion-color-step-650, #4c4c53);
+}
+
+/* The options arrive together rather than one at a time. A stagger was tried
+   and dropped: the delays that read as deliberate are under a tenth of a
+   second, which is below the threshold Moodle's stylelint configuration allows
+   for a reason, and the memorable part of this screen is the verdict rather
+   than the entrance. */
+@keyframes rmm-deal {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.rmm-choice {
+    animation: rmm-deal 220ms ease-out backwards;
+}
+
+/* Anyone who has asked for less motion still gets the same screen, arriving all
+   at once. */
+@media (prefers-reduced-motion: reduce) {
+    .rmm-choice {
+        animation: none;
+        transition: none;
+    }
+
+    .rmm-choice:active:not([disabled]) {
+        transform: none;
+    }
 }

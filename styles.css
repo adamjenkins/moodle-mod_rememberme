@@ -74,3 +74,145 @@
         animation: none;
     }
 }
+
+/* The hand of options: a single response multiple choice question is answered
+   by clicking an option, not by choosing a radio button and pressing a submit
+   button. The look is deliberately not the theme's question styling, because
+   the point of it is that a study set should not read as an exam paper. */
+.path-mod-rememberme .rmm-hand {
+    max-width: 40rem;
+}
+
+.path-mod-rememberme .rmm-prompt {
+    margin-bottom: 1.375rem;
+    font-size: 1.5rem;
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: -0.015em;
+}
+
+.path-mod-rememberme .rmm-prompt p {
+    margin: 0;
+}
+
+.path-mod-rememberme .rmm-choice {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    width: 100%;
+    margin: 0 0 0.625rem;
+    padding: 0.875rem 1rem 0.875rem 0.75rem;
+    border: 1px solid var(--border-color, #dee2e6);
+    border-radius: 14px;
+    background: var(--body-bg, #fff);
+    color: inherit;
+    font: inherit;
+    text-align: start;
+
+    /* The spine stays colourless until there is a verdict to report. */
+    box-shadow: inset 3px 0 0 0 transparent;
+    transition: box-shadow 160ms ease, border-color 160ms ease, opacity 160ms ease, transform 100ms ease;
+}
+
+.path-mod-rememberme .rmm-choice:hover:not([disabled]) {
+    border-color: var(--primary, #0f6cbf);
+}
+
+.path-mod-rememberme .rmm-choice:active:not([disabled]) {
+    transform: scale(0.99);
+}
+
+/* Every option is disabled once the answer is in, so the browser's own dimming
+   would flatten the difference between the options that still matter and the
+   ones that no longer do. */
+.path-mod-rememberme .rmm-choice[disabled] {
+    opacity: 1;
+}
+
+/* The token labels the option and then reports on it, so the verdict never
+   rests on colour alone. */
+.path-mod-rememberme .rmm-token {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.875rem;
+    height: 1.875rem;
+    border-radius: 9px;
+    background: var(--light, #f1f3f5);
+    color: var(--secondary, #5b5b62);
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.path-mod-rememberme .rmm-choice-text {
+    flex: 1 1 auto;
+    font-size: 1.05rem;
+    line-height: 1.35;
+}
+
+.path-mod-rememberme .rmm-choice.is-right {
+    border-color: #1b7f4b;
+    box-shadow: inset 3px 0 0 0 #1b7f4b;
+}
+
+.path-mod-rememberme .rmm-choice.is-right .rmm-token {
+    background: #1b7f4b;
+    color: #fff;
+}
+
+.path-mod-rememberme .rmm-choice.is-wrong {
+    border-color: #c0392b;
+    box-shadow: inset 3px 0 0 0 #c0392b;
+}
+
+.path-mod-rememberme .rmm-choice.is-wrong .rmm-token {
+    background: #c0392b;
+    color: #fff;
+}
+
+.path-mod-rememberme .rmm-choice.is-faded,
+.path-mod-rememberme .rmm-choice.is-faded[disabled] {
+    opacity: 0.38;
+}
+
+.path-mod-rememberme .rmm-verdict {
+    margin: 1rem 0 0;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+/* The options arrive together rather than one at a time. A stagger was tried
+   and dropped: the delays that read as deliberate are under a tenth of a
+   second, which is below the threshold Moodle's stylelint configuration allows
+   for a reason, and the memorable part of this screen is the verdict rather
+   than the entrance. */
+@keyframes rememberme-deal {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.path-mod-rememberme .rmm-choice {
+    animation: rememberme-deal 220ms ease-out backwards;
+}
+
+/* Anyone who has asked for less motion still gets the same screen, arriving all
+   at once. */
+@media (prefers-reduced-motion: reduce) {
+    .path-mod-rememberme .rmm-choice {
+        animation: none;
+        transition: none;
+    }
+
+    .path-mod-rememberme .rmm-choice:active:not([disabled]) {
+        transform: none;
+    }
+}

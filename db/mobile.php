@@ -44,7 +44,7 @@ $addons = [
                 'offlinefunctions' => [],
                 'styles' => [
                     'url' => $CFG->wwwroot . '/mod/rememberme/mobile/styles.css',
-                    'version' => 1,
+                    'version' => 3,
                 ],
             ],
         ],

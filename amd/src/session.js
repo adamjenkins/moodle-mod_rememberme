@@ -41,6 +41,7 @@ const SELECTORS = {
     streak: '[data-region="rememberme-streak"]',
     celebration: '[data-region="rememberme-celebration"]',
     audiotoggle: '[data-action="toggle-audio"]',
+    choice: '[data-action="choose"]',
 };
 
 const AUDIO_PREFERENCE_KEY = 'mod_rememberme_audio';
@@ -205,6 +206,19 @@ class Session {
             event.preventDefault();
             this.cue.setEnabled(!this.cue.enabled);
             this.renderAudioToggle();
+            return;
+        }
+
+        // Choosing an option is the answer. There is no confirmation step: a
+        // wrong answer costs a repetition and never a mark, so asking every
+        // learner to confirm every answer would buy very little.
+        const choice = event.target.closest(SELECTORS.choice);
+        if (choice) {
+            event.preventDefault();
+            if (this.busy || this.slot === null) {
+                return;
+            }
+            this.sendAnswer([{name: choice.dataset.name, value: choice.dataset.value}]);
         }
     }
 
@@ -260,8 +274,20 @@ class Session {
      * @returns {Promise} Resolves once the next question has been requested.
      */
     submitAnswer(form) {
+        return this.sendAnswer(Session.serialise(form));
+    }
+
+    /**
+     * Grade a response and show the feedback.
+     *
+     * Answers reach here either from a submitted form or from a chosen option,
+     * and are identical by the time they do: a list of name and value pairs.
+     *
+     * @param {Array} response The response fields.
+     * @returns {Promise} Resolves once the next question has been requested.
+     */
+    sendAnswer(response) {
         this.busy = true;
-        const response = Session.serialise(form);
 
         return Promise.resolve(
             Ajax.call([{

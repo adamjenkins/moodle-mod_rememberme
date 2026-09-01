@@ -163,6 +163,20 @@ class session {
                 // down; skip it and carry on with the rest of the queue.
                 continue;
             }
+            $this->limit_choices($question);
+
+            // Shuffle the choices, always. A question whose right answer sits
+            // in the same position every time can be recalled by position
+            // rather than by content, which is exactly the recall this activity
+            // is trying to measure. Question types that have no choices to
+            // order have no such property and are left alone. The teacher's own
+            // per question setting is deliberately overridden rather than
+            // respected: an unshuffled item silently degrades the schedule for
+            // every learner, and there is no setting here to turn this off.
+            if (property_exists($question, 'shuffleanswers')) {
+                $question->shuffleanswers = true;
+            }
+
             $slot = $quba->add_question($question, 1.0);
             $slots[$slot] = $entry;
         }
@@ -205,6 +219,131 @@ class session {
     }
 
     /**
+     * Drop surplus wrong options from a multiple choice question.
+     *
+     * A question written with eight options is a reading exercise on a phone.
+     * The teacher sets a ceiling; the right answers are always kept and the
+     * wrong ones are thinned at random, so the same question offers a different
+     * field of distractors each time it comes round and the shape of the answer
+     * cannot be memorised in place of the answer.
+     *
+     * Questions with no answers to thin, and question types that have no
+     * answers property at all, are left untouched. Filtering here rather than
+     * at render time is deliberate: the question engine builds its order from
+     * whatever answers the definition holds when the attempt starts, and that
+     * order is what grading later resolves, so the two cannot disagree.
+     *
+     * @param \question_definition $question The question, modified in place.
+     */
+    protected function limit_choices(\question_definition $question): void {
+        $limit = (int)($this->instance->maxchoices ?? 0);
+        if ($limit <= 0 || !property_exists($question, 'answers') || !is_array($question->answers)) {
+            return;
+        }
+        if (count($question->answers) <= $limit) {
+            return;
+        }
+
+        $right = [];
+        $wrong = [];
+        foreach ($question->answers as $id => $answer) {
+            // Anything carrying credit is a right answer, which covers the
+            // multiple response case where several options are right, and the
+            // partial credit case where an option is half right.
+            if ((float)$answer->fraction > 0) {
+                $right[$id] = $answer;
+            } else {
+                $wrong[$id] = $answer;
+            }
+        }
+
+        // A question whose right answers alone exceed the limit keeps them all.
+        // Presenting a multiple response question with some of its right
+        // answers missing would make it unanswerable.
+        $room = $limit - count($right);
+        if ($room <= 0) {
+            $question->answers = $right;
+
+            return;
+        }
+
+        $wrongids = array_keys($wrong);
+        shuffle($wrongids);
+        foreach (array_slice($wrongids, 0, $room) as $id) {
+            $right[$id] = $wrong[$id];
+        }
+
+        $question->answers = $right;
+    }
+
+    /**
+     * The choices for a question this plugin presents as buttons.
+     *
+     * Single response multiple choice is presented as a row of options the
+     * learner taps, rather than as radio buttons with a submit button beside
+     * them, so the choices are needed as data rather than as rendered controls.
+     * Every other question type keeps the question engine's own rendering and
+     * gets null here.
+     *
+     * @param int $slot The slot.
+     * @return array|null Field name, choices, and the right answer once graded.
+     */
+    public function get_choices(int $slot): ?array {
+        global $CFG;
+
+        if ($this->quba === null) {
+            return null;
+        }
+
+        // The question type's classes are loaded when a question of that type
+        // is loaded, which has already happened by the time a slot exists. The
+        // require is here anyway because the alternative failure is silent:
+        // instanceof against a class that has not been loaded is simply false,
+        // and the feature would quietly turn itself off.
+        require_once($CFG->dirroot . '/question/type/multichoice/question.php');
+
+        $qa = $this->quba->get_question_attempt($slot);
+        $question = $qa->get_question(false);
+
+        // Only single response. A multiple response question needs a way to
+        // choose several options and then commit them, which is the submit
+        // button this presentation exists to remove.
+        if (!$question instanceof \qtype_multichoice_single_question) {
+            return null;
+        }
+
+        $order = $question->get_order($qa);
+        $letters = range('A', 'Z');
+        $choices = [];
+        $index = 0;
+        foreach ($order as $value => $answerid) {
+            $answer = $question->answers[$answerid];
+            $choices[] = [
+                'value' => (int)$value,
+                'letter' => $letters[$index % count($letters)],
+                'text' => $question->make_html_inline($question->format_text(
+                    $answer->answer,
+                    $answer->answerformat,
+                    $qa,
+                    'question',
+                    'answer',
+                    (int)$answerid
+                )),
+            ];
+            $index++;
+        }
+
+        $correct = $question->get_correct_response();
+
+        return [
+            'name' => $qa->get_qt_field_name('answer'),
+            'questiontext' => $question->format_questiontext($qa),
+            'choices' => $choices,
+            'correctvalue' => isset($correct['answer']) ? (int)$correct['answer'] : -1,
+        ];
+    }
+
+    /**
      * The slot rows for this session.
      *
      * @return array Slot records keyed by slot number.
@@ -235,9 +374,22 @@ class session {
      */
     public function next_slot(): ?int {
         foreach ($this->get_slot_records() as $slot => $record) {
-            if (empty($record->graded)) {
-                return (int)$slot;
+            if (!empty($record->graded)) {
+                continue;
             }
+
+            // A slot the engine has already finished cannot be answered again,
+            // so offering it would hand the learner a dead question forever.
+            // Sessions saved by an earlier release could be left in that state,
+            // and skipping is what unsticks them: once every slot is either
+            // graded or unanswerable the session ends and the next one starts
+            // clean. Nothing is recorded for the skipped item, so the scheduler
+            // simply offers it again another day.
+            if ($this->quba !== null && $this->quba->get_question_state($slot)->is_finished()) {
+                continue;
+            }
+
+            return (int)$slot;
         }
         return null;
     }
@@ -330,8 +482,17 @@ class session {
             $this->collecting = true;
         }
 
-        $html = $this->quba->render_question($slot, $options);
-        $javascript = $PAGE->requires->get_end_code();
+        $choices = $this->get_choices($slot);
+        if ($choices !== null) {
+            // Presented as tappable options rather than as radio buttons with a
+            // submit button. Nothing of the question engine's own scripting is
+            // needed for that, so no JavaScript comes back with it.
+            $html = $this->render_choices($slot, $choices, $feedback);
+            $javascript = '';
+        } else {
+            $html = $this->quba->render_question($slot, $options);
+            $javascript = $PAGE->requires->get_end_code();
+        }
 
         if (!$feedback) {
             // Latency is measured from the moment the server rendered the
@@ -347,6 +508,70 @@ class session {
         }
 
         return [$html, $javascript];
+    }
+
+    /**
+     * Render a question as a hand of tappable options.
+     *
+     * The same markup serves the question and its verdict, because the verdict
+     * is a state of the options rather than a separate screen: the option the
+     * learner chose and the one that was right are marked in place, and the
+     * rest recede.
+     *
+     * @param int $slot The slot.
+     * @param array $choices The choice data from get_choices().
+     * @param bool $feedback Whether the answer is in.
+     * @return string The markup.
+     */
+    protected function render_choices(int $slot, array $choices, bool $feedback): string {
+        global $OUTPUT;
+
+        $picked = null;
+        if ($feedback) {
+            $answer = $this->quba->get_question_attempt($slot)->get_last_qt_var('answer');
+            // An unanswered question has no chosen option rather than option
+            // zero, and option zero is a real answer.
+            $picked = ($answer === null || $answer === '') ? null : (int)$answer;
+        }
+
+        $correctvalue = (int)$choices['correctvalue'];
+        $rows = [];
+        foreach ($choices['choices'] as $choice) {
+            $value = (int)$choice['value'];
+            $isright = $feedback && $value === $correctvalue;
+            $iswrong = $feedback && $picked === $value && $value !== $correctvalue;
+
+            $token = $choice['letter'];
+            if ($isright) {
+                $token = "\u{2713}";
+            } else if ($iswrong) {
+                $token = "\u{2715}";
+            }
+
+            $rows[] = [
+                'value' => $value,
+                'text' => $choice['text'],
+                'token' => $token,
+                'isright' => $isright,
+                'iswrong' => $iswrong,
+                'isfaded' => $feedback && !$isright && !$iswrong,
+            ];
+        }
+
+        $verdict = '';
+        if ($feedback) {
+            $verdict = $picked === $correctvalue
+                ? get_string('correct', 'rememberme')
+                : get_string('notquite', 'rememberme');
+        }
+
+        return $OUTPUT->render_from_template('mod_rememberme/session_choices', [
+            'name' => $choices['name'],
+            'questiontext' => $choices['questiontext'],
+            'choices' => $rows,
+            'graded' => $feedback,
+            'verdict' => $verdict,
+        ]);
     }
 
     /**
@@ -418,8 +643,20 @@ class session {
 
         $this->quba->process_all_actions($now, $postdata);
 
+        // A response the behaviour would not act on leaves the question
+        // unfinished. Forcing it finished here would be the worst of both
+        // worlds: the engine records the question as given up and refuses any
+        // further answer, while this plugin, which records nothing for an
+        // ungraded question, leaves the slot queued forever. The learner is
+        // then handed the same dead question every time they open the activity
+        // and the session can never end. So nothing is saved and the slot stays
+        // exactly as answerable as it was.
+        //
+        // The usual cause is an empty or incomplete answer, which is a thing
+        // learners do rather than an error, hence a message about the answer
+        // rather than about the plugin.
         if (!$this->quba->get_question_state($slot)->is_finished()) {
-            $this->quba->finish_question($slot, $now);
+            throw new \moodle_exception('errorincompleteresponse', 'rememberme');
         }
 
         \question_engine::save_questions_usage_by_activity($this->quba);

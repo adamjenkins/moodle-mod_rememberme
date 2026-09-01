@@ -31,6 +31,7 @@
     * cmid Number The course module id
     * name String The activity name
     * hasquestion Boolean Whether a question is being presented
+    * haschoices Boolean Whether the question is presented as tappable options
     * message String Shown when there is no question to answer
     * due Number Items a session would offer right now
     * answered Number Questions answered so far in this session
@@ -45,6 +46,7 @@
         "cmid": 42,
         "name": "Vocabulary review",
         "hasquestion": true,
+        "haschoices": false,
         "message": "",
         "due": 12,
         "answered": 3,
@@ -73,19 +75,68 @@
     </ion-card>
 
     {{#hasquestion}}
-        <core-question
-            *ngIf="question"
-            [question]="question"
-            component="mod_rememberme"
-            [componentId]="{{cmid}}"
-            contextLevel="module"
-            [contextInstanceId]="{{cmid}}"
-            preferredBehaviour="immediatefeedback"
-            (buttonClicked)="questionButtonClicked($event)"
-            (onAbort)="abortQuestion()">
-        </core-question>
+    {{#haschoices}}
+        {{!
+            A single response multiple choice question is a hand of options the
+            learner taps. There is no submit button: the tap is the answer. The
+            letter on each option becomes the verdict in place once the answer
+            is in, so the same element labels the option and then reports on it,
+            and colour is never the only thing carrying the result.
 
-        <div class="ion-padding" *ngIf="!feedbackShown">
+            Angular interpolation is avoided throughout in favour of property
+            bindings, because this file is rendered through Mustache first and
+            the two languages share their braces.
+        }}
+        <div class="rmm-hand" *ngIf="choices">
+            <core-format-text class="rmm-prompt" [text]="choices.questiontext"
+                contextLevel="module" [contextInstanceId]="{{cmid}}"></core-format-text>
+
+            <button type="button" class="rmm-choice"
+                *ngFor="let choice of choices.choices"
+                [class.is-picked]="picked === choice.value"
+                [class.is-right]="verdict && choice.value === choices.correctvalue"
+                [class.is-wrong]="verdict && picked === choice.value && choice.value !== choices.correctvalue"
+                [class.is-faded]="verdict && picked !== choice.value && choice.value !== choices.correctvalue"
+                [disabled]="answering || verdict"
+                (click)="chooseAnswer(choice.value)">
+                <span class="rmm-token" aria-hidden="true" [textContent]="tokenFor(choice)"></span>
+                <core-format-text class="rmm-choice-text" [text]="choice.text"
+                    contextLevel="module" [contextInstanceId]="{{cmid}}"></core-format-text>
+            </button>
+
+            <p class="rmm-verdict" role="status" aria-live="polite" [textContent]="verdictLabel"></p>
+        </div>
+    {{/haschoices}}
+    {{^haschoices}}
+        {{!
+            The form is this template's job. The app renders the question as
+            native controls rather than as the server's HTML, and wraps them in
+            nothing, but its answer helper reads a form's elements collection.
+            The class is what the accompanying JavaScript anchors on, so that it
+            never reads answers out of some other form on the page.
+        }}
+        <form class="mod_rememberme-question" onsubmit="return false;">
+            <core-question
+                *ngIf="question"
+                [question]="question"
+                component="mod_rememberme"
+                [componentId]="{{cmid}}"
+                contextLevel="module"
+                [contextInstanceId]="{{cmid}}"
+                preferredBehaviour="immediatefeedback"
+                (buttonClicked)="questionButtonClicked($event)"
+                (onAbort)="abortQuestion()">
+            </core-question>
+        </form>
+
+        {{!
+            The app pulls the question's own submit button out of the rendered
+            HTML and renders it itself, reporting taps through buttonClicked, so
+            offering one here as well shows the learner two Check buttons. This
+            one is the fallback for a behaviour that extracted none, which would
+            otherwise leave the session with no way to answer.
+        }}
+        <div class="ion-padding" *ngIf="!feedbackShown && !question?.behaviourButtons?.length">
             <ion-button expand="block" (click)="submitAnswer()" [disabled]="submitting">
                 {{#str}} checkanswer, mod_rememberme {{/str}}
             </ion-button>
@@ -96,6 +147,7 @@
                 {{#str}} nextquestion, mod_rememberme {{/str}}
             </ion-button>
         </div>
+    {{/haschoices}}
     {{/hasquestion}}
 
     {{^hasquestion}}

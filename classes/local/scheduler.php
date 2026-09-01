@@ -303,8 +303,8 @@ class scheduler {
     /**
      * Build the queue of questions for a session.
      *
-     * Due reviews first, ordered by urgency, then new items from the currently
-     * unlocked band only, subject to the per day cap.
+     * Due reviews first, ordered by urgency, then new items drawn at random from
+     * the unlocked bands, subject to the per day cap.
      *
      * @param int $userid The learner.
      * @param int|null $limit Maximum items, or null for the instance session size.
@@ -398,12 +398,25 @@ class scheduler {
         // unseen questions there, and leaving them stranded would mean the
         // syllabus was never covered even though the learner kept up.
         $bandentries = $this->pool->get_entries_up_to_band($bandlevel);
+
+        // Draw the new items at random rather than in pool order. The pool
+        // comes back in a stable order, so without this every learner meets the
+        // same questions in the same sequence and, worse, a learner who never
+        // clears their daily allowance only ever sees the front of the list:
+        // the tail of a large band would go unseen indefinitely while the
+        // unlock rules waited for it. Shuffling the unseen candidates rather
+        // than the whole pool keeps the work proportional to what is left.
+        $unseen = [];
         foreach ($bandentries as $qbeid => $entry) {
+            if (!isset($seen[(int)$qbeid])) {
+                $unseen[] = [(int)$qbeid, $entry];
+            }
+        }
+        shuffle($unseen);
+
+        foreach ($unseen as [$qbeid, $entry]) {
             if (count($queue) >= $limit || $newallowed <= 0) {
                 break;
-            }
-            if (isset($seen[(int)$qbeid])) {
-                continue;
             }
             $queue[] = (object)[
                 'questionbankentryid' => (int)$qbeid,
