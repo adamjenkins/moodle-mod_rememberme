@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="mod/rememberme/db" VERSION="20260901" COMMENT="XMLDB file for Moodle mod_rememberme"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
+>
+  <TABLES>
+    <TABLE NAME="rememberme" COMMENT="Spaced repetition activity instances.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="course" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="intro" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="introformat" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="targetretention" TYPE="number" LENGTH="5" NOTNULL="true" DEFAULT="0.9000" SEQUENCE="false" DECIMALS="4" COMMENT="Retrievability at which an item becomes due. Lower means fewer reviews and more forgetting."/>
+        <FIELD NAME="sessionsize" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="20" SEQUENCE="false" COMMENT="Maximum items offered in one session."/>
+        <FIELD NAME="newperday" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="10" SEQUENCE="false" COMMENT="Cap on new items introduced per day, so an eager learner is not buried in reviews a week later."/>
+        <FIELD NAME="unlockmode" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="0 time based, 1 mastery based."/>
+        <FIELD NAME="unlockinterval" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="7" SEQUENCE="false" COMMENT="Days between band unlocks in time based mode."/>
+        <FIELD NAME="stabilityfloor" TYPE="number" LENGTH="10" NOTNULL="true" DEFAULT="14.0000" SEQUENCE="false" DECIMALS="4" COMMENT="Stability in days at which an item counts as established, in mastery mode."/>
+        <FIELD NAME="masteryproportion" TYPE="number" LENGTH="5" NOTNULL="true" DEFAULT="0.7000" SEQUENCE="false" DECIMALS="4" COMMENT="Share of a band that must be established before the next unlocks."/>
+        <FIELD NAME="backstopdays" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="21" SEQUENCE="false" COMMENT="Maximum effective days on one band before it unlocks regardless."/>
+        <FIELD NAME="coursestart" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Course wide start of week one. Week boundaries are the same for every learner."/>
+        <FIELD NAME="activeweeks" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="15" SEQUENCE="false"/>
+        <FIELD NAME="gracebalance" TYPE="number" LENGTH="10" NOTNULL="true" DEFAULT="1.0000" SEQUENCE="false" DECIMALS="4" COMMENT="Grace credit granted up front, as a fraction of weeks."/>
+        <FIELD NAME="graceearnrate" TYPE="number" LENGTH="10" NOTNULL="true" DEFAULT="0.2500" SEQUENCE="false" DECIMALS="4" COMMENT="Grace earned per session worth of voluntary work during a suspension window."/>
+        <FIELD NAME="passthreshold" TYPE="number" LENGTH="5" NOTNULL="true" DEFAULT="0.5000" SEQUENCE="false" DECIMALS="4" COMMENT="Partial credit at or above this counts as recall rather than a lapse."/>
+        <FIELD NAME="uselatency" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Whether answer latency may refine a correct answer from good to easy."/>
+        <FIELD NAME="audiocue" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Whether the audio feedback cue is on by default."/>
+        <FIELD NAME="pausecorrect" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="1200" SEQUENCE="false" COMMENT="Milliseconds of feedback before auto advancing after a correct answer."/>
+        <FIELD NAME="pauseincorrect" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="2500" SEQUENCE="false" COMMENT="Milliseconds of feedback after an incorrect answer. Longer, because there is more to take in."/>
+        <FIELD NAME="grade" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="100" SEQUENCE="false"/>
+        <FIELD NAME="completionweeks" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Custom completion rule: weeks the learner must clear. Zero disables the rule."/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="course" TYPE="foreign" FIELDS="course" REFTABLE="course" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+
+    <TABLE NAME="rememberme_schedule" COMMENT="Per learner, per item memory state. Stability and difficulty are authoritative; the interval is never stored, only derived.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="rememberme" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="questionbankentryid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="The stable bank entry, not a versioned question id, so editing a question does not orphan the learner's memory state."/>
+        <FIELD NAME="stability" TYPE="number" LENGTH="12" NOTNULL="true" DEFAULT="0.000000" SEQUENCE="false" DECIMALS="6" COMMENT="Days at which retrievability decays to the target retention."/>
+        <FIELD NAME="difficulty" TYPE="number" LENGTH="10" NOTNULL="true" DEFAULT="0.000000" SEQUENCE="false" DECIMALS="6" COMMENT="Intrinsic hardness of this item for this learner, 1 to 10."/>
+        <FIELD NAME="fuzzfactor" TYPE="number" LENGTH="6" NOTNULL="true" DEFAULT="1.0000" SEQUENCE="false" DECIMALS="4" COMMENT="Stored jitter multiplier. The interval stays derivable from stability while the schedule stays reproducible."/>
+        <FIELD NAME="reps" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="lapses" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="state" TYPE="char" LENGTH="12" NOTNULL="true" DEFAULT="new" SEQUENCE="false" COMMENT="new, learning, review or relearning."/>
+        <FIELD NAME="bandlevel" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Band this item was introduced from. Review is never band restricted; this is for reporting."/>
+        <FIELD NAME="lastreviewed" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="duedate" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Cached wall clock due date, suspension aware at write time. The authoritative test is effective elapsed time; this exists so the hot query can use an index."/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="rememberme" TYPE="foreign" FIELDS="rememberme" REFTABLE="rememberme" REFFIELDS="id"/>
+        <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="rememberme-userid-duedate" UNIQUE="false" FIELDS="rememberme, userid, duedate" COMMENT="The hot query path: what is due for this learner now."/>
+        <INDEX NAME="rememberme-userid-qbe" UNIQUE="true" FIELDS="rememberme, userid, questionbankentryid"/>
+        <INDEX NAME="questionbankentryid" UNIQUE="false" FIELDS="questionbankentryid" COMMENT="Cohort wide difficulty reporting, and pruning deleted questions."/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="rememberme_review_log" COMMENT="One immutable row per graded attempt. Permits re-tuning the model against real data, retrospective rescheduling, and debugging a drifted scheduler, none of which the live state can support because it carries no history.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="rememberme" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="questionbankentryid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="questionid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="The question version actually served, so a teacher can see that an item changed mid course."/>
+        <FIELD NAME="qtype" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="rating" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="1 again, 2 hard, 3 good, 4 easy."/>
+        <FIELD NAME="fraction" TYPE="number" LENGTH="12" NOTNULL="true" DEFAULT="0.0000000" SEQUENCE="false" DECIMALS="7" COMMENT="Objective grade, clamped to 0..1 for storage."/>
+        <FIELD NAME="elapseddays" TYPE="number" LENGTH="12" NOTNULL="true" DEFAULT="0.000000" SEQUENCE="false" DECIMALS="6" COMMENT="Effective days since the previous review, with suspended time removed."/>
+        <FIELD NAME="retrievability" TYPE="number" LENGTH="8" NOTNULL="true" DEFAULT="0.000000" SEQUENCE="false" DECIMALS="6"/>
+        <FIELD NAME="stabilitybefore" TYPE="number" LENGTH="12" NOTNULL="true" DEFAULT="0.000000" SEQUENCE="false" DECIMALS="6"/>
+        <FIELD NAME="difficultybefore" TYPE="number" LENGTH="10" NOTNULL="true" DEFAULT="0.000000" SEQUENCE="false" DECIMALS="6"/>
+        <FIELD NAME="stabilityafter" TYPE="number" LENGTH="12" NOTNULL="true" DEFAULT="0.000000" SEQUENCE="false" DECIMALS="6"/>
+        <FIELD NAME="difficultyafter" TYPE="number" LENGTH="10" NOTNULL="true" DEFAULT="0.000000" SEQUENCE="false" DECIMALS="6"/>
+        <FIELD NAME="latency" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Milliseconds taken to answer, or null when the measurement was not trustworthy."/>
+        <FIELD NAME="weekno" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="insuspension" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Whether this was voluntary work inside a suspension window."/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="rememberme" TYPE="foreign" FIELDS="rememberme" REFTABLE="rememberme" REFFIELDS="id"/>
+        <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="rememberme-userid-timecreated" UNIQUE="false" FIELDS="rememberme, userid, timecreated"/>
+        <INDEX NAME="rememberme-userid-weekno" UNIQUE="false" FIELDS="rememberme, userid, weekno" COMMENT="Weekly completion counting."/>
+        <INDEX NAME="rememberme-qbe" UNIQUE="false" FIELDS="rememberme, questionbankentryid" COMMENT="Per question cohort difficulty reporting."/>
+        <INDEX NAME="userid-qtype" UNIQUE="false" FIELDS="userid, qtype" COMMENT="Rolling latency medians are per learner and per question type."/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="rememberme_bands" COMMENT="Ordered question categories bound to an instance. Bands gate the introduction of new items, never revision.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="rememberme" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="sortorder" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Teacher defined sequence. Question difficulty in a syllabus follows the syllabus, not a memory model."/>
+        <FIELD NAME="questioncategoryid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="includesubcategories" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="rememberme" TYPE="foreign" FIELDS="rememberme" REFTABLE="rememberme" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="rememberme-sortorder" UNIQUE="false" FIELDS="rememberme, sortorder"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="rememberme_bandstate" COMMENT="Per learner band progress. Unlocking is per learner, so two students in one course can be on different bands.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="rememberme" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="bandlevel" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
+        <FIELD NAME="reason" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="none" SEQUENCE="false" COMMENT="How the current band was reached. A backstop advance is the signal worth acting on."/>
+        <FIELD NAME="firstsession" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Time based unlocking counts from here, not from course start."/>
+        <FIELD NAME="bandsince" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="When the current band was entered, for the backstop."/>
+        <FIELD NAME="lastunlockwindow" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Start of the suspension window in which a band last unlocked, enforcing at most one per window."/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="rememberme" TYPE="foreign" FIELDS="rememberme" REFTABLE="rememberme" REFFIELDS="id"/>
+        <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="rememberme-userid" UNIQUE="true" FIELDS="rememberme, userid"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="rememberme_weeks" COMMENT="Per learner weekly completion. The target is frozen when the week begins and never grows during it.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="rememberme" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="weekno" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="snapshottarget" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Items due at the start of the week plus the new items permitted that week. Never recomputed mid week."/>
+        <FIELD NAME="snapshottaken" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="completed" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="fraction" TYPE="number" LENGTH="6" NOTNULL="true" DEFAULT="0.0000" SEQUENCE="false" DECIMALS="4"/>
+        <FIELD NAME="graceapplied" TYPE="number" LENGTH="10" NOTNULL="true" DEFAULT="0.0000" SEQUENCE="false" DECIMALS="4" COMMENT="Grace spent on this week at final grade calculation."/>
+        <FIELD NAME="suspended" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Weeks more than half suspended are removed from the denominator."/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="rememberme" TYPE="foreign" FIELDS="rememberme" REFTABLE="rememberme" REFFIELDS="id"/>
+        <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="rememberme-userid-weekno" UNIQUE="true" FIELDS="rememberme, userid, weekno"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="rememberme_suspensions" COMMENT="Teacher defined windows during which the scheduling clock does not tick.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="rememberme" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="timestart" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timeend" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="rememberme" TYPE="foreign" FIELDS="rememberme" REFTABLE="rememberme" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="rememberme-timestart" UNIQUE="false" FIELDS="rememberme, timestart"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="rememberme_session" COMMENT="One row per delivery session, carrying the question engine usage that renders and grades it.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="rememberme" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="uniqueid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="The question_usages id. Core stores no owner on a usage, so the association lives here."/>
+        <FIELD NAME="itemcount" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="answered" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timefinished" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="rememberme" TYPE="foreign" FIELDS="rememberme" REFTABLE="rememberme" REFFIELDS="id"/>
+        <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="rememberme-userid-timecreated" UNIQUE="false" FIELDS="rememberme, userid, timecreated"/>
+        <INDEX NAME="uniqueid" UNIQUE="true" FIELDS="uniqueid"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="rememberme_slot" COMMENT="Which bank entry each question engine slot in a session serves, so a graded slot can be traced back to a schedule record.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="sessionid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="slot" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="questionbankentryid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="questionid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="bandlevel" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="isnew" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Whether this slot introduced a new item, for the per day new item cap."/>
+        <FIELD NAME="graded" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timeshown" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Server side render time, so latency is measured server side rather than trusted from the client."/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="sessionid" TYPE="foreign" FIELDS="sessionid" REFTABLE="rememberme_session" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="sessionid-slot" UNIQUE="true" FIELDS="sessionid, slot"/>
+      </INDEXES>
+    </TABLE>
+  </TABLES>
+</XMLDB>

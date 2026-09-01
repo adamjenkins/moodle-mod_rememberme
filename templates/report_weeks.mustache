@@ -1,0 +1,142 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template mod_rememberme/report_weeks
+
+    The weekly completion matrix: learners down, weeks across.
+
+    Each cell shows the fraction of that week's frozen target the learner
+    earned, and the grace credit spent to top that week up if any was. Weeks
+    that fall inside a suspension window are marked and are outside the grading
+    denominator entirely, so an empty cell in a suspended week is not a miss.
+
+    The matrix is wide by design, so it scrolls inside its own container rather
+    than stretching the page. Suspension and grace are marked with words, not
+    with colour alone.
+
+    The learner value arrives already escaped with s() and is rendered
+    unescaped on purpose. Every other value is escaped by the template engine.
+
+    Context variables required for this template:
+    * hasrows Boolean Whether there is both a participant and a week to show
+    * columns Array of weeks, each with:
+        * weekno Number The week number
+        * label String The already escaped column label
+        * suspended Boolean Whether the whole week is suspended
+    * rows Array of learners, each with:
+        * learner String The learner's full name, already escaped
+        * gracetotal String Total grace credit spent across all weeks
+        * cells Array in column order, each with:
+            * hasrecord Boolean Whether the learner has a row for that week
+            * suspended Boolean Whether that week does not count
+            * fraction String The fraction of the target earned
+            * completed Number Items completed that week
+            * target Number The frozen target for that week
+            * hasgrace Boolean Whether grace was spent on that week
+            * grace String How much grace was spent
+
+    Example context (json):
+    {
+        "hasrows": true,
+        "columns": [
+            {"weekno": 1, "label": "Week 1", "suspended": false},
+            {"weekno": 2, "label": "Week 2", "suspended": true}
+        ],
+        "rows": [
+            {
+                "learner": "Aisha Karim",
+                "gracetotal": "0.20",
+                "cells": [
+                    {
+                        "hasrecord": true,
+                        "suspended": false,
+                        "fraction": "0.80",
+                        "completed": 16,
+                        "target": 20,
+                        "hasgrace": true,
+                        "grace": "0.20"
+                    },
+                    {
+                        "hasrecord": false,
+                        "suspended": true,
+                        "fraction": "",
+                        "completed": 0,
+                        "target": 0,
+                        "hasgrace": false,
+                        "grace": "0.00"
+                    }
+                ]
+            }
+        ]
+    }
+}}
+<div class="mod_rememberme-report mod_rememberme-report-weeks">
+    <p class="text-muted">{{#str}}reportweeksintro, mod_rememberme{{/str}}</p>
+
+    {{#hasrows}}
+    <div class="table-responsive">
+        <table class="table table-striped generaltable mod_rememberme-weekmatrix">
+            <caption>{{#str}}reportweekscaption, mod_rememberme{{/str}}</caption>
+            <thead>
+                <tr>
+                    <th scope="col">{{#str}}learner, mod_rememberme{{/str}}</th>
+                    {{#columns}}
+                    <th scope="col">
+                        {{{label}}}
+                        {{#suspended}}
+                            <span class="d-block small text-muted">{{#str}}weeksuspended, mod_rememberme{{/str}}</span>
+                        {{/suspended}}
+                    </th>
+                    {{/columns}}
+                    <th scope="col">{{#str}}graceused, mod_rememberme{{/str}}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#rows}}
+                <tr>
+                    <th scope="row" class="font-weight-normal">{{{learner}}}</th>
+                    {{#cells}}
+                    <td>
+                        {{#suspended}}
+                            <span class="small text-muted">{{#str}}weeksuspended, mod_rememberme{{/str}}</span>
+                        {{/suspended}}
+                        {{^suspended}}
+                            {{#hasrecord}}
+                                {{fraction}}
+                                <span class="d-block small text-muted">{{completed}} / {{target}}</span>
+                                {{#hasgrace}}
+                                    <span class="d-block small">{{#str}}graceused, mod_rememberme{{/str}} {{grace}}</span>
+                                {{/hasgrace}}
+                            {{/hasrecord}}
+                            {{^hasrecord}}
+                                <span class="sr-only visually-hidden">{{#str}}noactivity, mod_rememberme{{/str}}</span>
+                                <span aria-hidden="true" class="text-muted">&mdash;</span>
+                            {{/hasrecord}}
+                        {{/suspended}}
+                    </td>
+                    {{/cells}}
+                    <td>{{gracetotal}}</td>
+                </tr>
+                {{/rows}}
+            </tbody>
+        </table>
+    </div>
+    {{/hasrows}}
+    {{^hasrows}}
+        <p class="text-muted">{{#str}}reportnodata, mod_rememberme{{/str}}</p>
+    {{/hasrows}}
+</div>

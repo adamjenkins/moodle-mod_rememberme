@@ -1,0 +1,119 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template mod_rememberme/report_bands
+
+    Band progression across the cohort.
+
+    The reason column is the reason this report exists. A band reached by
+    backstop means the learner never met the unlock threshold and the next part
+    of the syllabus was handed to them anyway, to stop them stalling on one band
+    for the whole course. That is a deliberate mercy, not an achievement, and it
+    is the row a teacher should act on. It is shown as words rather than as a
+    colour, so it survives a greyscale print and a screen reader.
+
+    The learner value arrives already escaped with s() and is rendered
+    unescaped on purpose. Every other value is escaped by the template engine.
+
+    Context variables required for this template:
+    * hasrows Boolean Whether there are any participants to list
+    * bandcount Number How many bands this activity has
+    * hasbackstopped Boolean Whether anybody advanced by backstop
+    * backstopped Number How many learners advanced by backstop
+    * rows Array of rows, each with:
+        * learner String The learner's full name, already escaped
+        * bandlevel Number The band the learner has reached
+        * started Boolean Whether the learner has any band state at all
+        * reason String The localised label for how the band was reached
+        * isbackstop Boolean Whether that reason was the backstop
+        * bandsince String Formatted date the learner entered this band
+        * firstsession String Formatted date of the learner's first session
+
+    Example context (json):
+    {
+        "hasrows": true,
+        "bandcount": 6,
+        "hasbackstopped": true,
+        "backstopped": 2,
+        "rows": [
+            {
+                "learner": "Aisha Karim",
+                "bandlevel": 4,
+                "started": true,
+                "reason": "Band established",
+                "isbackstop": false,
+                "bandsince": "18/08/26",
+                "firstsession": "02/06/26"
+            },
+            {
+                "learner": "Tom Boyd",
+                "bandlevel": 2,
+                "started": true,
+                "reason": "Backstop",
+                "isbackstop": true,
+                "bandsince": "20/08/26",
+                "firstsession": "05/06/26"
+            }
+        ]
+    }
+}}
+<div class="mod_rememberme-report mod_rememberme-report-bands">
+    {{#hasbackstopped}}
+        <div class="alert alert-warning" role="status">
+            {{#str}}backstopwarning, mod_rememberme, {{backstopped}}{{/str}}
+        </div>
+    {{/hasbackstopped}}
+
+    {{#hasrows}}
+    <div class="table-responsive">
+        <table class="table table-striped generaltable">
+            <caption>{{#str}}reportbandscaption, mod_rememberme{{/str}}</caption>
+            <thead>
+                <tr>
+                    <th scope="col">{{#str}}learner, mod_rememberme{{/str}}</th>
+                    <th scope="col">{{#str}}bandprogress, mod_rememberme{{/str}}</th>
+                    <th scope="col">{{#str}}bandreason, mod_rememberme{{/str}}</th>
+                    <th scope="col">{{#str}}bandsince, mod_rememberme{{/str}}</th>
+                    <th scope="col">{{#str}}firstsession, mod_rememberme{{/str}}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#rows}}
+                <tr>
+                    <th scope="row" class="font-weight-normal">{{{learner}}}</th>
+                    <td>
+                        {{#started}}{{bandlevel}} / {{bandcount}}{{/started}}
+                        {{^started}}{{#str}}notstarted, mod_rememberme{{/str}}{{/started}}
+                    </td>
+                    <td>
+                        {{reason}}
+                        {{#isbackstop}}
+                            <span class="badge badge-warning bg-warning text-dark ms-1">{{#str}}flagreview, mod_rememberme{{/str}}</span>
+                        {{/isbackstop}}
+                    </td>
+                    <td>{{bandsince}}</td>
+                    <td>{{firstsession}}</td>
+                </tr>
+                {{/rows}}
+            </tbody>
+        </table>
+    </div>
+    {{/hasrows}}
+    {{^hasrows}}
+        <p class="text-muted">{{#str}}reportnodata, mod_rememberme{{/str}}</p>
+    {{/hasrows}}
+</div>

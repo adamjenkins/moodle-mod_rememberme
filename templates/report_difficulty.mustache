@@ -1,0 +1,121 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template mod_rememberme/report_difficulty
+
+    Per question difficulty across the cohort, hardest first.
+
+    The purpose is finding defective questions. Difficulty is a per learner
+    quantity, so an item that is difficult for one learner is simply difficult
+    for that learner; an item that is difficult for nearly everybody is usually
+    badly worded, ambiguous, or has a wrong answer key.
+
+    The questionname value arrives already passed through format_string(), so it
+    is filtered, escaped HTML and is rendered unescaped on purpose. Every other
+    value is escaped by the template engine.
+
+    Context variables required for this template:
+    * hasrows Boolean Whether there is any data at all
+    * hasflagged Boolean Whether any question crossed the flag threshold
+    * flaggedcount Number How many questions crossed it
+    * threshold String The mean difficulty at which a question is flagged
+    * minlearners Number How many learners must have attempted an item before it can be flagged
+    * rows Array of rows, each with:
+        * questionname String The question name, already format_string()ed
+        * learners Number How many learners have memory state for this item
+        * meandifficulty String Mean difficulty across those learners
+        * meanstability String Mean stability in days
+        * meanlapses String Mean lapses per learner
+        * reps Number Total successful recalls across the cohort
+        * flagged Boolean Whether this row is worth a teacher's attention
+
+    Example context (json):
+    {
+        "hasrows": true,
+        "hasflagged": true,
+        "flaggedcount": 1,
+        "threshold": "7.0",
+        "minlearners": 3,
+        "rows": [
+            {
+                "questionname": "Which of these is a noun?",
+                "learners": 24,
+                "meandifficulty": "8.41",
+                "meanstability": "1.90",
+                "meanlapses": "3.10",
+                "reps": 41,
+                "flagged": true
+            },
+            {
+                "questionname": "Translate: the red house",
+                "learners": 22,
+                "meandifficulty": "4.02",
+                "meanstability": "17.30",
+                "meanlapses": "0.40",
+                "reps": 96,
+                "flagged": false
+            }
+        ]
+    }
+}}
+<div class="mod_rememberme-report mod_rememberme-report-difficulty">
+    <p class="text-muted">{{#str}}reportdifficulty_help, mod_rememberme{{/str}}</p>
+
+    {{#hasflagged}}
+        <div class="alert alert-warning" role="status">
+            {{#str}}difficultyflagged, mod_rememberme, {"count": {{flaggedcount}}, "threshold": "{{threshold}}", "learners": {{minlearners}}}{{/str}}
+        </div>
+    {{/hasflagged}}
+
+    {{#hasrows}}
+    <div class="table-responsive">
+        <table class="table table-striped generaltable">
+            <caption>{{#str}}reportdifficultycaption, mod_rememberme{{/str}}</caption>
+            <thead>
+                <tr>
+                    <th scope="col">{{#str}}question, mod_rememberme{{/str}}</th>
+                    <th scope="col">{{#str}}meandifficulty, mod_rememberme{{/str}}</th>
+                    <th scope="col">{{#str}}learners, mod_rememberme{{/str}}</th>
+                    <th scope="col">{{#str}}meanlapses, mod_rememberme{{/str}}</th>
+                    <th scope="col">{{#str}}meanstability, mod_rememberme{{/str}}</th>
+                    <th scope="col">{{#str}}reviews, mod_rememberme{{/str}}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#rows}}
+                <tr>
+                    <th scope="row" class="font-weight-normal">
+                        {{{questionname}}}
+                        {{#flagged}}
+                            <span class="badge badge-warning bg-warning text-dark ms-1">{{#str}}flagreview, mod_rememberme{{/str}}</span>
+                        {{/flagged}}
+                    </th>
+                    <td>{{meandifficulty}}</td>
+                    <td>{{learners}}</td>
+                    <td>{{meanlapses}}</td>
+                    <td>{{meanstability}}</td>
+                    <td>{{reps}}</td>
+                </tr>
+                {{/rows}}
+            </tbody>
+        </table>
+    </div>
+    {{/hasrows}}
+    {{^hasrows}}
+        <p class="text-muted">{{#str}}reportnodata, mod_rememberme{{/str}}</p>
+    {{/hasrows}}
+</div>

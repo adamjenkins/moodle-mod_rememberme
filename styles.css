@@ -1,0 +1,41 @@
+/* Remember Me: session layout.
+   Deliberately minimal. The question itself is rendered by core's question
+   engine and inherits the theme's question styling, so nothing here may
+   override it. */
+
+.path-mod-rememberme .rememberme-session {
+    max-width: 48rem;
+    margin: 0 auto;
+}
+
+.path-mod-rememberme .rememberme-sessionprogress {
+    height: 0.5rem;
+}
+
+.path-mod-rememberme .rememberme-question {
+    min-height: 12rem;
+}
+
+/* Auto-advance means the feedback is on screen only briefly, so the state
+   change needs to read instantly rather than be hunted for. */
+.path-mod-rememberme .rememberme-question .que.correct {
+    border-inline-start: 4px solid var(--success, #357a32);
+    padding-inline-start: 0.75rem;
+}
+
+.path-mod-rememberme .rememberme-question .que.incorrect {
+    border-inline-start: 4px solid var(--danger, #ca3120);
+    padding-inline-start: 0.75rem;
+}
+
+.path-mod-rememberme .rememberme-complete-icon {
+    font-size: 2.5rem;
+}
+
+/* Respect a reduced-motion preference: the progress bar is the only thing that
+   animates, and it is decorative. */
+@media (prefers-reduced-motion: reduce) {
+    .path-mod-rememberme .progress-bar {
+        transition: none;
+    }
+}

@@ -1,0 +1,84 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template mod_rememberme/session
+
+    The study session. Opening the activity is the session: there is no landing
+    page and no start button, because the friction of an intermediate screen is
+    disproportionate for an activity meant to be visited briefly and often.
+
+    Classes required for JS:
+    * none
+
+    Data attributes required for JS:
+    * data-region="rememberme-session"
+    * data-cmid
+    * data-audio
+
+    Context variables required for this template:
+    * cmid Number The course module id
+    * audio Boolean Whether the audio cue is on by default
+    * weeklabel String Progress against this week's frozen target
+    * streaklabel String The learner's current streak, if any
+    * hasstreak Boolean Whether to show the streak
+    * loading String Placeholder text shown before the first question arrives
+
+    Example context (json):
+    {
+        "cmid": 42,
+        "audio": true,
+        "weeklabel": "0 of 20 this week",
+        "streaklabel": "3 weeks in a row",
+        "hasstreak": true,
+        "loading": "Loading your next question..."
+    }
+}}
+<div class="rememberme-session" data-region="rememberme-session" data-cmid="{{cmid}}" data-audio="{{#audio}}1{{/audio}}{{^audio}}0{{/audio}}">
+
+    <div class="rememberme-header d-flex flex-wrap align-items-center justify-content-between mb-3">
+        <div class="rememberme-meta">
+            <span class="rememberme-week badge bg-primary text-white" data-region="rememberme-week">{{weeklabel}}</span>
+            {{#hasstreak}}
+                <span class="rememberme-streak badge bg-success text-white ms-1" data-region="rememberme-streak">{{streaklabel}}</span>
+            {{/hasstreak}}
+            {{^hasstreak}}
+                <span class="rememberme-streak visually-hidden" data-region="rememberme-streak"></span>
+            {{/hasstreak}}
+        </div>
+        <button type="button" class="btn btn-link rememberme-audio" data-action="toggle-audio" aria-pressed="{{#audio}}true{{/audio}}{{^audio}}false{{/audio}}">
+            {{#pix}}i/messagecontentaudio, core{{/pix}}
+        </button>
+    </div>
+
+    <div class="progress rememberme-sessionprogress mb-3" role="progressbar" aria-label="{{#str}}sessionprogress, mod_rememberme{{/str}}" aria-valuemin="0" aria-valuenow="0" aria-valuemax="100" data-region="rememberme-progressbar-wrapper">
+        <div class="progress-bar" style="width: 0%" data-region="rememberme-progressbar"></div>
+    </div>
+
+    <div class="visually-hidden" role="status" aria-live="polite" data-region="rememberme-status"></div>
+
+    {{!
+        The question must live inside a real form: core's own question JavaScript
+        reaches for button.form.dataset, and the rendered question is a div, not
+        a form. mod_quiz wraps its questions the same way. Double submit
+        protection is turned off because this form never navigates -- the answer
+        goes over AJAX and the page stays put.
+    }}
+    <form class="rememberme-question" data-region="rememberme-question"
+          method="post" action="#" data-double-submit-protection="off">
+        <p class="text-muted">{{loading}}</p>
+    </form>
+</div>

@@ -1,0 +1,58 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template mod_rememberme/mobile_view
+
+    The activity view inside the Moodle app.
+
+    Context variables required for this template:
+    * cmid Number The course module id
+    * name String The activity name
+    * intro String The activity description, already formatted
+    * due Number How many questions are due now
+    * canattempt Boolean Whether this user may answer questions
+    * weekdone Number Items completed this week
+    * weektarget Number This week's frozen target
+
+    Example context (json):
+    {
+        "cmid": 42,
+        "name": "Vocabulary review",
+        "intro": "<p>Daily practice.</p>",
+        "due": 12,
+        "canattempt": true,
+        "weekdone": 8,
+        "weektarget": 20
+    }
+}}
+<ion-card>
+    <ion-card-header>
+        <ion-card-title>{{name}}</ion-card-title>
+    </ion-card-header>
+    <ion-card-content>
+        <core-format-text text="{{intro}}"></core-format-text>
+        {{#canattempt}}
+            <p class="mod-rememberme-due">{{due}} {{#str}} duetoday, mod_rememberme {{/str}}</p>
+            <p>{{weekdone}} / {{weektarget}}</p>
+            <ion-button expand="block" core-site-plugins-new-content
+                        component="mod_rememberme" method="mobile_course_view"
+                        [args]="{cmid: {{cmid}}}">
+                {{#str}} startsession, mod_rememberme {{/str}}
+            </ion-button>
+        {{/canattempt}}
+    </ion-card-content>
+</ion-card>

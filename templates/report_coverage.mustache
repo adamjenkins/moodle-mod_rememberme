@@ -1,0 +1,180 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template mod_rememberme/report_coverage
+
+    Per learner coverage and retention, plus the cohort review load forecast.
+
+    Coverage is how much of the pool a learner has met at all; established is
+    how much of it they hold at or above the instance's stability floor. The
+    gap between the two columns is the interesting number: a learner who has
+    seen everything and established little is cramming rather than retaining.
+
+    The forecast is a plain count of items falling due on each of the coming
+    days. It is drawn from the cached duedate column, which is written
+    suspension aware, so a holiday shows up as a flat stretch rather than as a
+    cliff on the day the holiday ends. Each bar carries its own count as text,
+    so the chart is readable without seeing the bar.
+
+    The learner value arrives already escaped with s() and is rendered
+    unescaped on purpose. Every other value is escaped by the template engine.
+
+    Context variables required for this template:
+    * hasrows Boolean Whether there are any participants to list
+    * pooltotal Number How many questions the pool holds
+    * stabilityfloor String The stability in days at which an item counts as established
+    * rows Array of rows, each with:
+        * learner String The learner's full name, already escaped
+        * seen Number Items the learner has memory state for
+        * poolseen String That as a whole number percentage of the pool
+        * established Number Items at or above the stability floor
+        * poolestablished String That as a whole number percentage of the pool
+        * meanstability String Mean stability in days across items seen
+        * lapses Number Total lapses
+        * started Boolean Whether the learner has answered anything
+    * forecast Object with:
+        * hasload Boolean Whether anything is due or overdue
+        * overdue Number Items already overdue across the cohort
+        * overduewidth Number Bar width for the overdue count, 0 to 100
+        * days Array of days, each with label String, count Number, width Number
+
+    Example context (json):
+    {
+        "hasrows": true,
+        "pooltotal": 180,
+        "stabilityfloor": "14.00",
+        "rows": [
+            {
+                "learner": "Aisha Karim",
+                "seen": 140,
+                "poolseen": "78",
+                "established": 96,
+                "poolestablished": "53",
+                "meanstability": "21.40",
+                "lapses": 18,
+                "started": true
+            },
+            {
+                "learner": "Tom Boyd",
+                "seen": 0,
+                "poolseen": "0",
+                "established": 0,
+                "poolestablished": "0",
+                "meanstability": "0.00",
+                "lapses": 0,
+                "started": false
+            }
+        ],
+        "forecast": {
+            "hasload": true,
+            "overdue": 12,
+            "overduewidth": 40,
+            "days": [
+                {"label": "01 September", "count": 30, "width": 100},
+                {"label": "02 September", "count": 9, "width": 30}
+            ]
+        }
+    }
+}}
+<div class="mod_rememberme-report mod_rememberme-report-coverage">
+    <p class="text-muted">
+        {{#str}}poolsize, mod_rememberme, {{pooltotal}}{{/str}}
+        {{#str}}establishedat, mod_rememberme, {{stabilityfloor}}{{/str}}
+    </p>
+
+    {{#hasrows}}
+    <div class="table-responsive">
+        <table class="table table-striped generaltable">
+            <caption>{{#str}}reportcoveragecaption, mod_rememberme{{/str}}</caption>
+            <thead>
+                <tr>
+                    <th scope="col">{{#str}}learner, mod_rememberme{{/str}}</th>
+                    <th scope="col">{{#str}}itemsseen, mod_rememberme{{/str}}</th>
+                    <th scope="col">{{#str}}itemsestablished, mod_rememberme{{/str}}</th>
+                    <th scope="col">{{#str}}meanstability, mod_rememberme{{/str}}</th>
+                    <th scope="col">{{#str}}lapses, mod_rememberme{{/str}}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#rows}}
+                <tr>
+                    <th scope="row" class="font-weight-normal">{{{learner}}}</th>
+                    <td>
+                        {{#started}}{{seen}} ({{poolseen}}%){{/started}}
+                        {{^started}}{{#str}}notstarted, mod_rememberme{{/str}}{{/started}}
+                    </td>
+                    <td>
+                        {{#started}}{{established}} ({{poolestablished}}%){{/started}}
+                        {{^started}}{{#str}}notstarted, mod_rememberme{{/str}}{{/started}}
+                    </td>
+                    <td>{{meanstability}}</td>
+                    <td>{{lapses}}</td>
+                </tr>
+                {{/rows}}
+            </tbody>
+        </table>
+    </div>
+    {{/hasrows}}
+    {{^hasrows}}
+        <p class="text-muted">{{#str}}reportnodata, mod_rememberme{{/str}}</p>
+    {{/hasrows}}
+
+    <h3 class="h5 mt-4">{{#str}}forecast, mod_rememberme{{/str}}</h3>
+    <p class="text-muted">{{#str}}forecast_help, mod_rememberme{{/str}}</p>
+
+    {{#forecast}}
+        {{#hasload}}
+        <div class="table-responsive">
+            <table class="table generaltable mod_rememberme-forecast">
+                <caption>{{#str}}forecastcaption, mod_rememberme{{/str}}</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">{{#str}}day, mod_rememberme{{/str}}</th>
+                        <th scope="col">{{#str}}itemsdue, mod_rememberme{{/str}}</th>
+                        <th scope="col">{{#str}}relativeload, mod_rememberme{{/str}}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th scope="row" class="font-weight-normal">{{#str}}overduenow, mod_rememberme{{/str}}</th>
+                        <td>{{overdue}}</td>
+                        <td class="w-50">
+                            <div class="progress" aria-hidden="true">
+                                <div class="progress-bar bg-secondary" style="width: {{overduewidth}}%"></div>
+                            </div>
+                        </td>
+                    </tr>
+                    {{#days}}
+                    <tr>
+                        <th scope="row" class="font-weight-normal">{{label}}</th>
+                        <td>{{count}}</td>
+                        <td class="w-50">
+                            <div class="progress" aria-hidden="true">
+                                <div class="progress-bar" style="width: {{width}}%"></div>
+                            </div>
+                        </td>
+                    </tr>
+                    {{/days}}
+                </tbody>
+            </table>
+        </div>
+        {{/hasload}}
+        {{^hasload}}
+            <p class="text-muted">{{#str}}reportnodata, mod_rememberme{{/str}}</p>
+        {{/hasload}}
+    {{/forecast}}
+</div>
