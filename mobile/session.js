@@ -132,8 +132,13 @@ this.chooseAnswer = async function(value) {
         }, result.correct ? this.pauseCorrect : this.pauseIncorrect);
     } catch (error) {
         this.picked = null;
-        this.showError(error);
         this.refresh();
+
+        if (this.isAlreadyAnswered(error)) {
+            this.nextQuestion();
+        } else {
+            this.showError(error);
+        }
     } finally {
         this.answering = false;
     }
@@ -256,7 +261,11 @@ this.submitAnswer = async function() {
             component.refresh();
         });
     } catch (error) {
-        this.showError(error);
+        if (this.isAlreadyAnswered(error)) {
+            this.nextQuestion();
+        } else {
+            this.showError(error);
+        }
     } finally {
         this.submitting = false;
     }
@@ -264,6 +273,21 @@ this.submitAnswer = async function() {
 
 /**
  * Fetch the next question by re-running the handler.
+ *
+ * The content must never be read from a cache. updateContent() goes through the
+ * app's ordinary cached read of tool_mobile_get_content, and what this handler
+ * returns is the next question, which is a different answer to the same call
+ * every time it is made. The first call from here missed the cache, because the
+ * app's own module page fetches with courseid as well as cmid, and it then
+ * stored the reply: every later call was served that stored question, so the
+ * session sat on one question for good and answering it again was refused as
+ * already answered.
+ *
+ * The arguments match the ones the module page uses, so the two share a cache
+ * entry rather than each holding a stale copy of the other's. Nothing is stored
+ * either, which suits an activity that already declares no offline support: a
+ * question kept on disk is a question that may have been answered since.
+ * componentId is restated because supplying presets replaces them wholesale.
  *
  * @returns {Promise} Resolves once the next question is on screen.
  */
@@ -274,11 +298,32 @@ this.nextQuestion = function() {
     this.verdictLabel = '';
     this.refresh();
 
-    return this.updateContent(
-        {cmid: this.cmid},
-        'mod_rememberme',
-        'mobile_course_view'
-    );
+    var args = {cmid: this.cmid};
+    if (this.courseId) {
+        args.courseid = this.courseId;
+    }
+
+    return this.updateContent(args, 'mod_rememberme', 'mobile_course_view', undefined, {
+        componentId: this.cmid,
+        getFromCache: false,
+        saveToCache: false,
+        emergencyCache: false,
+    });
+};
+
+/**
+ * Whether a failed answer means the question had already been answered.
+ *
+ * The honest response to that is to move on rather than to report it. It means
+ * the screen is showing a question the server has already dealt with, and the
+ * learner did nothing wrong; telling them their answer was rejected would be
+ * both alarming and useless, because the same tap would be rejected again.
+ *
+ * @param {Object} error The error from the web service.
+ * @returns {Boolean} True if the question is already behind us.
+ */
+this.isAlreadyAnswered = function(error) {
+    return !!error && error.errorcode === 'erroralreadyanswered';
 };
 
 /**
