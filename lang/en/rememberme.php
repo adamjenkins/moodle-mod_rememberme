@@ -169,7 +169,6 @@ $string['questionsanswered'] = 'Questions answered';
 $string['relativeload'] = 'Share of the fortnight\'s load';
 $string['rememberme:addinstance'] = 'Add a new Remember Me activity';
 $string['rememberme:attempt'] = 'Answer questions';
-$string['rememberme:manage'] = 'Manage schedules and reset learner progress';
 $string['rememberme:view'] = 'View Remember Me activity';
 $string['rememberme:viewreports'] = 'View Remember Me reports';
 $string['reportbands'] = 'Band progression';

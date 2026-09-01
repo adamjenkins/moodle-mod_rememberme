@@ -412,30 +412,77 @@ function rememberme_get_coursemodule_info($coursemodule) {
 }
 
 /**
- * Serve files belonging to questions used by this activity.
+ * Serve files embedded in the questions this activity asks.
+ *
+ * The signature is fixed by core, which calls this with nine arguments from
+ * question_pluginfile() in lib/questionlib.php. Declaring fewer silently
+ * misaligns every argument after the first, so it must match exactly.
  *
  * @param stdClass $course The course.
- * @param stdClass $cm The course module.
- * @param context $context The context.
+ * @param context $context The context the file lives in.
+ * @param string $component The component owning the file.
  * @param string $filearea The file area.
+ * @param int $qubaid The question usage the file is being viewed through.
+ * @param int $slot The slot within that usage.
  * @param array $args Remaining path arguments.
  * @param bool $forcedownload Whether to force download.
  * @param array $options Serving options.
- * @return bool False if the file was not found.
  */
-function rememberme_question_pluginfile($course, $cm, $context, $filearea, $args, $forcedownload, array $options = []) {
-    global $DB;
+function rememberme_question_pluginfile(
+    $course,
+    $context,
+    $component,
+    $filearea,
+    $qubaid,
+    $slot,
+    $args,
+    $forcedownload,
+    array $options = []
+) {
+    global $DB, $USER, $CFG;
 
-    $usageid = (int)reset($args);
-    if (!$DB->record_exists('rememberme_session', ['uniqueid' => $usageid])) {
+    require_once($CFG->dirroot . '/question/engine/lib.php');
+
+    // Resolve the usage back to the session that owns it. A usage id arrives
+    // from the URL, so nothing about it may be taken on trust.
+    $session = $DB->get_record('rememberme_session', ['uniqueid' => (int)$qubaid]);
+    if (!$session) {
         send_file_not_found();
     }
 
+    $cm = get_coursemodule_from_instance('rememberme', $session->rememberme, 0, false, MUST_EXIST);
     require_login($course, false, $cm);
+
+    $modulecontext = context_module::instance($cm->id);
+
+    // A learner may see the files in their own session; anybody else needs the
+    // report capability. Without this check any participant could read another
+    // learner's question media by guessing a usage id.
+    if ((int)$session->userid === (int)$USER->id) {
+        require_capability('mod/rememberme:attempt', $modulecontext);
+    } else {
+        require_capability('mod/rememberme:viewreports', $modulecontext);
+    }
+
+    // Let the question engine decide whether this file is reachable from that
+    // slot at all, rather than trusting the path.
+    $quba = question_engine::load_questions_usage_by_activity((int)$qubaid);
+    if ($quba->get_owning_component() !== 'mod_rememberme') {
+        send_file_not_found();
+    }
+
+    $displayoptions = new question_display_options();
+    $displayoptions->feedback = question_display_options::VISIBLE;
+    $displayoptions->generalfeedback = question_display_options::VISIBLE;
+    $displayoptions->rightanswer = question_display_options::VISIBLE;
+
+    if (!$quba->check_file_access((int)$slot, $displayoptions, $component, $filearea, $args, $forcedownload)) {
+        send_file_not_found();
+    }
 
     $fs = get_file_storage();
     $relativepath = implode('/', $args);
-    $fullpath = "/{$context->id}/mod_rememberme/{$filearea}/{$relativepath}";
+    $fullpath = "/{$context->id}/{$component}/{$filearea}/{$relativepath}";
     $file = $fs->get_file_by_hash(sha1($fullpath));
     if (!$file || $file->is_directory()) {
         send_file_not_found();

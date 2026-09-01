@@ -68,15 +68,4 @@ $capabilities = [
             'manager' => CAP_ALLOW,
         ],
     ],
-
-    // Resetting a learner's schedule discards memory state that took a term to
-    // build, so it is deliberately not granted to the non-editing teacher.
-    'mod/rememberme:manage' => [
-        'captype' => 'write',
-        'contextlevel' => CONTEXT_MODULE,
-        'archetypes' => [
-            'editingteacher' => CAP_ALLOW,
-            'manager' => CAP_ALLOW,
-        ],
-    ],
 ];

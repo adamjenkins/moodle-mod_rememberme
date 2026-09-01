@@ -375,9 +375,34 @@ class session {
             throw new \moodle_exception('erroralreadyanswered', 'rememberme');
         }
 
+        $prefix = $this->quba->get_field_prefix($slot);
+
+        // Scope the submitted data to the slot actually being answered.
+        //
+        // This is not belt and braces. process_all_actions() asks
+        // get_slots_in_request() which slots to process, and that returns EVERY
+        // slot in the usage unless the data names a subset. The response array
+        // arrives from the client, so without this a learner could include a
+        // submit action for every other question in their session and have the
+        // engine grade all of them in one request. The engine would record those
+        // gradings while this plugin recorded none, leaving the two disagreeing:
+        // questions finished in the engine but still queued here, which then
+        // render read-only with no way to answer them.
+        //
+        // Both halves matter. Dropping foreign keys stops another slot's
+        // response reaching the engine, and naming the slot stops the engine
+        // deciding for itself which slots are in play.
+        $scoped = [];
+        foreach ($postdata as $name => $value) {
+            if (strpos((string)$name, $prefix) === 0) {
+                $scoped[$name] = $value;
+            }
+        }
+        $scoped['slots'] = (string)$slot;
+        $postdata = $scoped;
+
         // The behaviour only grades when it sees its own submit action, so make
         // sure it is present however the client serialised the form.
-        $prefix = $this->quba->get_field_prefix($slot);
         $postdata[$prefix . '-submit'] = 1;
 
         // The sequence check is mandatory: without it process_all_actions

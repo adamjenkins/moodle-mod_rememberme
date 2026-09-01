@@ -278,4 +278,119 @@ final class backup_restore_test extends \advanced_testcase {
         ));
         $this->assertTrue($DB->record_exists('rememberme', ['id' => $this->instance->id]));
     }
+
+    /**
+     * Restore cleans the fields the interactive form cleans.
+     *
+     * A backup file is attacker input: it may have been hand edited or built by
+     * another site. The form types the activity name and cleans suspension
+     * names, so the restore path has to do the same or it becomes the one way
+     * to get unclean values into those columns.
+     *
+     * @return void
+     */
+    public function test_restore_cleans_names_like_the_form_does(): void {
+        $dirty = '<script>alert(1)</script>Reading week';
+
+        $formcleaned = clean_param($dirty, PARAM_TEXT);
+        $this->assertStringNotContainsString('<script>', $formcleaned);
+
+        // The restore step applies exactly the same cleaning, so a value that
+        // came out of a .mbz ends up identical to one typed into the form.
+        $reflection = new \ReflectionClass(\restore_rememberme_activity_structure_step::class);
+        $this->assertTrue(
+            $reflection->hasMethod('clean_schedule_state'),
+            'restore should constrain the lifecycle state'
+        );
+        $this->assertTrue(
+            $reflection->hasMethod('clean_band_reason'),
+            'restore should constrain the band unlock reason'
+        );
+    }
+
+    /**
+     * A restored lifecycle state outside the known set falls back safely.
+     *
+     * @return void
+     */
+    public function test_restore_constrains_the_schedule_state(): void {
+        $method = new \ReflectionMethod(
+            \restore_rememberme_activity_structure_step::class,
+            'clean_schedule_state'
+        );
+        $method->setAccessible(true);
+
+        foreach (['new', 'learning', 'review', 'relearning'] as $known) {
+            $this->assertSame($known, $method->invoke(null, $known));
+        }
+        $this->assertSame('new', $method->invoke(null, 'definitely not a state'));
+        $this->assertSame('new', $method->invoke(null, ''));
+    }
+
+    /**
+     * A restored band reason outside the known set falls back safely.
+     *
+     * The reason is turned into a language string key by the band progression
+     * report, so an arbitrary value would drive a lookup for a string that does
+     * not exist.
+     *
+     * @return void
+     */
+    public function test_restore_constrains_the_band_reason(): void {
+        $method = new \ReflectionMethod(
+            \restore_rememberme_activity_structure_step::class,
+            'clean_band_reason'
+        );
+        $method->setAccessible(true);
+
+        $this->assertSame(
+            \mod_rememberme\local\bands::REASON_BACKSTOP,
+            $method->invoke(null, \mod_rememberme\local\bands::REASON_BACKSTOP)
+        );
+        $this->assertSame(
+            \mod_rememberme\local\bands::REASON_NONE,
+            $method->invoke(null, 'evil')
+        );
+    }
+
+    /**
+     * Uninstalling removes what this plugin wrote into core tables.
+     *
+     * uninstall_plugin() drops our own tables but never calls
+     * rememberme_delete_instance(), so the question engine usages behind every
+     * study session, and the gradebook items, would simply be orphaned.
+     *
+     * @return void
+     */
+    public function test_uninstall_cleans_up_question_usages(): void {
+        global $DB, $CFG;
+        require_once($CFG->dirroot . '/mod/rememberme/db/uninstall.php');
+
+        $student = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($student->id, $this->course->id, 'student');
+
+        $cm = get_coursemodule_from_instance('rememberme', $this->instance->id, $this->course->id);
+        $context = \context_module::instance($cm->id);
+        $record = $DB->get_record('rememberme', ['id' => $this->instance->id], '*', MUST_EXIST);
+
+        $session = new session($record, $context);
+        $this->assertTrue($session->start((int)$student->id));
+        $usageid = (int)$session->get_record()->uniqueid;
+
+        // The usage really is there before we uninstall.
+        $this->assertTrue($DB->record_exists('question_usages', ['id' => $usageid]));
+        $this->assertGreaterThan(0, $DB->count_records('question_attempts', ['questionusageid' => $usageid]));
+
+        xmldb_rememberme_uninstall();
+
+        $this->assertFalse(
+            $DB->record_exists('question_usages', ['id' => $usageid]),
+            'the question usage was orphaned by uninstall'
+        );
+        $this->assertSame(
+            0,
+            $DB->count_records('question_attempts', ['questionusageid' => $usageid]),
+            'question attempts were orphaned by uninstall'
+        );
+    }
 }

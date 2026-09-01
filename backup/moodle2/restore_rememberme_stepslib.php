@@ -128,6 +128,12 @@ class restore_rememberme_activity_structure_step extends restore_questions_activ
         $data = (object)$data;
         $data->course = $this->get_courseid();
 
+        // A .mbz is attacker input: it may have been hand edited, or produced by
+        // another site entirely. The interactive form cleans these fields, so the
+        // restore path has to clean them identically or it becomes the one way to
+        // get unclean values into the table.
+        $data->name = clean_param($data->name ?? '', PARAM_TEXT);
+
         // The coursestart field anchors every week boundary in this activity, so it rolls
         // with the course start date. Any change to the list of rolled dates must be made
         // identically in course reset. See MDL-9367.
@@ -187,6 +193,9 @@ class restore_rememberme_activity_structure_step extends restore_questions_activ
         $data = (object)$data;
         $data->rememberme = $this->get_new_parentid('rememberme');
 
+        // Cleaned exactly as rememberme_save_suspensions() cleans the form value.
+        $data->name = clean_param($data->name ?? '', PARAM_TEXT);
+
         // Teacher configured windows roll with the course start date, as coursestart does.
         $data->timestart = $this->apply_date_offset($data->timestart);
         $data->timeend = $this->apply_date_offset($data->timeend);
@@ -241,6 +250,11 @@ class restore_rememberme_activity_structure_step extends restore_questions_activ
         // stability), so they must be offset together or not at all.
         $data->lastreviewed = $this->apply_date_offset($data->lastreviewed);
         $data->duedate = $this->apply_date_offset($data->duedate);
+
+        // The lifecycle state is an enum in everything but the column type, and it
+        // steers later scheduling decisions. A value from outside the set could only
+        // come from a hand edited backup, so fall back rather than store it.
+        $data->state = self::clean_schedule_state($data->state ?? '');
 
         $DB->insert_record('rememberme_schedule', $data);
         // No mapping saved: nothing references a schedule row by id.
@@ -298,6 +312,11 @@ class restore_rememberme_activity_structure_step extends restore_questions_activ
         $data->firstsession = $this->apply_date_offset($data->firstsession);
         $data->bandsince = $this->apply_date_offset($data->bandsince);
         $data->lastunlockwindow = $this->apply_date_offset($data->lastunlockwindow);
+
+        // The unlock reason is turned into a language string key when the band
+        // progression report renders it, so an arbitrary restored value would drive
+        // a lookup for a string that does not exist.
+        $data->reason = self::clean_band_reason($data->reason ?? '');
 
         $DB->insert_record('rememberme_bandstate', $data);
     }
@@ -464,5 +483,33 @@ class restore_rememberme_activity_structure_step extends restore_questions_activ
 
         // The 'intro' area is the only file area this plugin owns; it has no itemid.
         $this->add_related_files('mod_rememberme', 'intro', null);
+    }
+
+    /**
+     * Constrain a restored schedule lifecycle state to the known set.
+     *
+     * @param string $state The state from the backup file.
+     * @return string A state this plugin recognises.
+     */
+    protected static function clean_schedule_state(string $state): string {
+        $known = ['new', 'learning', 'review', 'relearning'];
+        return in_array($state, $known, true) ? $state : 'new';
+    }
+
+    /**
+     * Constrain a restored band unlock reason to the known set.
+     *
+     * @param string $reason The reason from the backup file.
+     * @return string A reason this plugin recognises.
+     */
+    protected static function clean_band_reason(string $reason): string {
+        $known = [
+            \mod_rememberme\local\bands::REASON_NONE,
+            \mod_rememberme\local\bands::REASON_TIME,
+            \mod_rememberme\local\bands::REASON_MASTERY,
+            \mod_rememberme\local\bands::REASON_BACKSTOP,
+            \mod_rememberme\local\bands::REASON_SUSPENSION_LIMIT,
+        ];
+        return in_array($reason, $known, true) ? $reason : \mod_rememberme\local\bands::REASON_NONE;
     }
 }
