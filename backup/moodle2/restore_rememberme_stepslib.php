@@ -123,7 +123,7 @@ class restore_rememberme_activity_structure_step extends restore_questions_activ
      * @return void
      */
     protected function process_rememberme($data) {
-        global $DB;
+        global $CFG, $DB;
 
         $data = (object)$data;
         $data->course = $this->get_courseid();
@@ -138,6 +138,25 @@ class restore_rememberme_activity_structure_step extends restore_questions_activ
         // with the course start date. Any change to the list of rolled dates must be made
         // identically in course reset. See MDL-9367.
         $data->coursestart = $this->apply_date_offset($data->coursestart);
+
+        // End of term rolls with the start. A backup made before the end date
+        // existed carries only a week count, and gets an end where its weeks ended.
+        if (!empty($data->termend)) {
+            $data->termend = $this->apply_date_offset($data->termend);
+        }
+        require_once($CFG->dirroot . '/mod/rememberme/lib.php');
+        rememberme_apply_term($data);
+
+        // A backup made before study day grading carries no study day fields.
+        // Its weeks were worked under the item count rule, so they get the same
+        // protection an upgraded activity gives them: the switch happens now,
+        // and no week that began earlier scores lower than it did.
+        if (!isset($data->studydays)) {
+            $data->studydaysfrom = time();
+        } else if (!empty($data->studydaysfrom)) {
+            $data->studydaysfrom = $this->apply_date_offset($data->studydaysfrom);
+        }
+        $data->studydays = min(7, max(1, (int)($data->studydays ?? 3)));
 
         $newitemid = $DB->insert_record('rememberme', $data);
 
@@ -343,6 +362,10 @@ class restore_rememberme_activity_structure_step extends restore_questions_activ
         $data->userid = $userid;
 
         // The weekno field is an offset from coursestart and needs no date arithmetic.
+        // The day flags are a seven bit field; anything else in it is not ours.
+        $data->clearedmask = ((int)($data->clearedmask ?? 0)) & 0x7f;
+        $data->daysrequired = min(7, max(0, (int)($data->daysrequired ?? 0)));
+        $data->daysstudied = min(7, max(0, (int)($data->daysstudied ?? 0)));
         $DB->insert_record('rememberme_weeks', $data);
     }
 
@@ -485,6 +508,13 @@ class restore_rememberme_activity_structure_step extends restore_questions_activ
 
         // The 'intro' area is the only file area this plugin owns; it has no itemid.
         $this->add_related_files('mod_rememberme', 'intro', null);
+
+        // The restored week scores were computed by whichever release made the
+        // backup, and the review log they derive from came with them, so they
+        // are rescored from it with the code that is running now.
+        if ($this->get_setting_value('userinfo')) {
+            \mod_rememberme\task\recalculate_weeks::queue((int)$this->task->get_activityid());
+        }
     }
 
     /**

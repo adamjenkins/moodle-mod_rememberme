@@ -42,4 +42,15 @@ $tasks = [
         'dayofweek' => '*',
         'month' => '*',
     ],
+    [
+        // A week that ends without the learner lowers their grade, and nothing
+        // the learner does would push that, so grades are refreshed daily.
+        'classname' => 'mod_rememberme\task\refresh_grades',
+        'blocking' => 0,
+        'minute' => 'R',
+        'hour' => '4',
+        'day' => '*',
+        'dayofweek' => '*',
+        'month' => '*',
+    ],
 ];

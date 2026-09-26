@@ -82,27 +82,17 @@ if ($scheduler->get_pool()->get_band_count() === 0) {
     exit;
 }
 
-$now = time();
-$weeks = $scheduler->get_weeks();
-$weekno = $weeks->week_for($now);
-
-// Freeze this week's target now if it has not been already, so the learner sees
-// an honest figure the moment they arrive rather than "0 of 0" until they answer
-// something. The target is fixed once and never grows during the week.
-$weekrecord = $scheduler->ensure_week_snapshot((int)$USER->id, $weekno, $now);
-
-$fractions = $DB->get_records_menu('rememberme_weeks', [
-    'rememberme' => $instance->id,
-    'userid' => $USER->id,
-], 'weekno ASC', 'weekno, fraction');
-$streak = \mod_rememberme\local\weeks::streak(array_map('floatval', $fractions), $weekno);
+$progress = \mod_rememberme\external\helper::week_progress($scheduler, (int)$USER->id);
+$streak = $progress['streak'];
 
 echo $OUTPUT->render_from_template('mod_rememberme/session', [
     'cmid' => $cm->id,
     'audio' => !empty($instance->audiocue),
-    'weeklabel' => get_string('progressthisweek', 'rememberme', [
-        'done' => $weekrecord ? (int)$weekrecord->completed : 0,
-        'target' => $weekrecord ? (int)$weekrecord->snapshottarget : 0,
+    'weeklabel' => $progress['weeklabel'],
+    'todaylabel' => $progress['todaylabel'],
+    'gradingexplained' => get_string('gradingexplained', 'rememberme', [
+        'days' => $scheduler->required_study_days(),
+        'items' => max(1, (int)$instance->sessionsize),
     ]),
     'hasstreak' => $streak > 0,
     'streaklabel' => get_string('streakweeks', 'rememberme', $streak),

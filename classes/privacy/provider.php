@@ -93,6 +93,9 @@ class provider implements
                 'snapshottarget' => 'privacy:metadata:rememberme_weeks:snapshottarget',
                 'completed' => 'privacy:metadata:rememberme_weeks:completed',
                 'fraction' => 'privacy:metadata:rememberme_weeks:fraction',
+                'daysrequired' => 'privacy:metadata:rememberme_weeks:daysrequired',
+                'daysstudied' => 'privacy:metadata:rememberme_weeks:daysstudied',
+                'clearedmask' => 'privacy:metadata:rememberme_weeks:clearedmask',
             ],
             'privacy:metadata:rememberme_weeks'
         );
@@ -338,6 +341,22 @@ class provider implements
     }
 
     /**
+     * The days a week row records as worked through, readable by a person.
+     *
+     * @param \stdClass $record A rememberme_weeks row.
+     * @return string Day numbers within the week, one based, or an empty string.
+     */
+    protected static function cleared_days(\stdClass $record): string {
+        $days = [];
+        for ($day = 0; $day < 7; $day++) {
+            if ((int)$record->clearedmask & (1 << $day)) {
+                $days[] = $day + 1;
+            }
+        }
+        return implode(', ', $days);
+    }
+
+    /**
      * The learner's weekly completion rows, shaped for export.
      *
      * @param int $instanceid The rememberme instance id.
@@ -362,6 +381,9 @@ class provider implements
                 'fraction' => $record->fraction,
                 'graceapplied' => $record->graceapplied,
                 'suspended' => transform::yesno($record->suspended),
+                'daysrequired' => $record->daysrequired,
+                'daysstudied' => $record->daysstudied,
+                'clearedmask' => self::cleared_days($record),
                 'timemodified' => self::format_time($record->timemodified),
             ];
         }

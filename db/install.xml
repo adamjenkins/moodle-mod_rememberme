@@ -19,8 +19,9 @@
         <FIELD NAME="stabilityfloor" TYPE="number" LENGTH="10" NOTNULL="true" DEFAULT="14.0000" SEQUENCE="false" DECIMALS="4" COMMENT="Stability in days at which an item counts as established, in mastery mode."/>
         <FIELD NAME="masteryproportion" TYPE="number" LENGTH="5" NOTNULL="true" DEFAULT="0.7000" SEQUENCE="false" DECIMALS="4" COMMENT="Share of a band that must be established before the next unlocks."/>
         <FIELD NAME="backstopdays" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="21" SEQUENCE="false" COMMENT="Maximum effective days on one band before it unlocks regardless."/>
-        <FIELD NAME="coursestart" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Course wide start of week one. Week boundaries are the same for every learner."/>
-        <FIELD NAME="activeweeks" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="15" SEQUENCE="false"/>
+        <FIELD NAME="coursestart" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Start of term, which is also the start of week one. Week boundaries are the same for every learner."/>
+        <FIELD NAME="activeweeks" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="15" SEQUENCE="false" COMMENT="Weeks from the start of term to the end of term, a partial last week included. Derived from the two dates whenever they are saved."/>
+        <FIELD NAME="termend" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="End of term. A last week cut short by it needs proportionally fewer study days."/>
         <FIELD NAME="gracebalance" TYPE="number" LENGTH="10" NOTNULL="true" DEFAULT="1.0000" SEQUENCE="false" DECIMALS="4" COMMENT="Grace credit granted up front, as a fraction of weeks."/>
         <FIELD NAME="graceearnrate" TYPE="number" LENGTH="10" NOTNULL="true" DEFAULT="0.2500" SEQUENCE="false" DECIMALS="4" COMMENT="Grace earned per session worth of voluntary work during a suspension window."/>
         <FIELD NAME="passthreshold" TYPE="number" LENGTH="5" NOTNULL="true" DEFAULT="0.5000" SEQUENCE="false" DECIMALS="4" COMMENT="Partial credit at or above this counts as recall rather than a lapse."/>
@@ -33,6 +34,8 @@
         <FIELD NAME="questionbankcmid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Course module id of the question bank whose categories the settings form offers. Zero means every bank the course can reach."/>
         <FIELD NAME="ontimegrace" TYPE="number" LENGTH="10" NOTNULL="true" DEFAULT="0.5000" SEQUENCE="false" DECIMALS="4" COMMENT="Most grace a learner can earn by answering items when they fall due rather than late. Zero switches the reward off."/>
         <FIELD NAME="maxchoices" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Most answer options to present for a multiple choice question, counting the right one. Surplus wrong options are dropped at random. Zero presents every option."/>
+        <FIELD NAME="studydays" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="3" SEQUENCE="false" COMMENT="Different days a learner must study in a week for the week to count in full."/>
+        <FIELD NAME="studydaysfrom" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="When study day grading took over from the item count target. A week that ended before this keeps the better of its old and new scores. Zero for activities created after the change."/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>
@@ -154,12 +157,15 @@
         <FIELD NAME="rememberme" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="weekno" TYPE="int" LENGTH="6" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
-        <FIELD NAME="snapshottarget" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Items due at the start of the week plus the new items permitted that week. Never recomputed mid week."/>
+        <FIELD NAME="snapshottarget" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Legacy, before study day grading: the item count target for the week. Kept for the record, no longer written."/>
         <FIELD NAME="snapshottaken" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
-        <FIELD NAME="completed" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="completed" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Legacy, before study day grading: distinct items engaged with that week. Kept for the record, no longer written."/>
         <FIELD NAME="fraction" TYPE="number" LENGTH="6" NOTNULL="true" DEFAULT="0.0000" SEQUENCE="false" DECIMALS="4"/>
         <FIELD NAME="graceapplied" TYPE="number" LENGTH="10" NOTNULL="true" DEFAULT="0.0000" SEQUENCE="false" DECIMALS="4" COMMENT="Grace spent on this week at final grade calculation."/>
         <FIELD NAME="suspended" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Weeks more than half suspended are removed from the denominator."/>
+        <FIELD NAME="daysrequired" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Study days needed for this week to count in full, frozen when the row is created."/>
+        <FIELD NAME="daysstudied" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Different days of this week on which the learner studied enough for the day to count."/>
+        <FIELD NAME="clearedmask" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="One bit per day of the week, set when the learner reached a point where nothing more could be offered that day. Cannot be rebuilt from the review log, so it is stored."/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>
       <KEYS>

@@ -98,19 +98,30 @@ on memory strength alone, whichever band it came from.
 
 Grading accuracy would contaminate the very signal the scheduler depends on, by
 rewarding guess avoidance and answer lookup. So the grade measures whether
-learners keep up with their schedule.
+learners come back to study, regularly.
 
-Each week the learner must clear what is due. Two rules make that fair:
+**Each week is scored on study days.** The teacher sets how many different days
+a week needs (3 by default). A day counts once the learner answers a session's
+worth of different questions, or works through everything on offer that day,
+whichever comes first. A week scores the days studied divided by the days
+needed, capped at 1.0, and the grade is the average of the weeks. So 100% means
+studying on that many days every week. The learner sees this on the page as
+"1 of 3 study days this week" and "Today: 2 of 20 questions", with one sentence
+saying exactly what earns a full grade.
 
-- **The target is frozen when the week begins.** It is what was due at that
-  moment plus the new items they may draw. Items that come due again *during*
-  the week roll into next week instead of enlarging this one. Under the
-  alternative — a denominator that grows as answered items fall due again — a
-  learner who answers everything asked of them can never reach 100%, because
-  every answer breeds another review before the week is out. The finish line
-  recedes as they approach it. The test suite asserts this directly.
-- **Partial weeks earn partial credit**, capped at 1.0, so a learner who logs in
-  late and does what they can is not scored as harshly as one who never came.
+- **Coming back is what counts.** Doing a week's work in one sitting is one study
+  day, however much it was. There is deliberately no "week complete" message:
+  it would tell learners they are done when the point is to return.
+- **A short queue is never a penalty.** The second way a day counts means a
+  learner with little due is marked down only for not coming, never for having
+  nothing to do.
+- **The week in progress does not lower the grade.** It joins the average once
+  it ends, or earlier if it is already earned in full, so grades do not dip at
+  the start of every week.
+- **Outside the graded weeks nothing is counted**, and the page says when grading
+  begins or that it has ended, rather than showing a count stuck at zero.
+- Grades reach the gradebook as soon as they change, and a daily task pushes the
+  effect of a week ending without the learner.
 
 **Returning on time is rewarded.** Answering an item close to when it falls due
 earns grace, up to a maximum the teacher sets. Punctuality is measured rather
@@ -120,10 +131,10 @@ everything for one sitting a fortnight earns none of it, because their questions
 sat overdue. It is paid in grace, so it can only repair a bad week.
 
 **Getting a question wrong costs time, never marks.** A wrong answer brings the
-question back within the same sitting rather than the next day. Weekly credit
+question back within the same sitting rather than the next day. A study day
 counts distinct questions engaged with, so answering one question repeatedly
-earns one point, and an answer submitted faster than the question could be read
-earns nothing at all.
+counts once, and an answer submitted faster than the question could be read
+counts not at all.
 
 **Grace credit** is a pool of fractional credit, not a count of whole weeks. It
 tops a week up toward 1.0 and costs exactly the gap it fills: rescuing a missed
@@ -136,9 +147,14 @@ because the queue is capped and driven by each learner's own memory state, the
 learner with the most reviews is the one with the most lapses, so a leaderboard
 would rank learners roughly inversely to how well they know the material.
 
-### Suspension windows
+### The term and its breaks
 
-A teacher can declare breaks during which **the scheduling clock stops**. This is
+The teacher sets a **start of term** and an **end of term**. Weeks run from the
+start of term, the same for every learner, and grading stops at the end. If the
+term ends part way through a week, that last week needs proportionally fewer
+study days, rounded up and never fewer than one.
+
+Breaks (suspension windows) must fall within the term. A teacher can declare breaks during which **the scheduling clock stops**. This is
 the part that is easy to get wrong. If scheduling ticked through a two-week
 break, everything would fall due at once and learners would return to a wall of
 overdue reviews created purely by a holiday somebody else declared — punishing
@@ -149,10 +165,17 @@ mid-window enrolments, cannot be undone if the teacher edits the window, and
 corrupts the review log's elapsed times), suspended time simply **does not
 exist**. Every scheduling calculation runs through an effective-time function, so
 windows stay editable after the fact and are correct for learners who join during
-one. Weeks more than half suspended drop out of the grade entirely.
+one.
 
-Voluntary study during a break earns grace credit, capped so a break cannot be
-farmed to buy back an absent term. At most one band unlocks per window, so a
+- **A week more than half suspended is not graded.** A learner who stays away
+  loses nothing, and the page says it is a break week rather than showing a count.
+- **A week partly suspended needs fewer study days**, in proportion to its open
+  days, rounded up: with three a week, a week with four open days needs two.
+- **Study during a break earns grace**, whether it is inside the window or on the
+  open days of a week that is not graded. It is measured like a study day, in
+  different questions answered properly each day, so repeating a question earns
+  nothing, and it is capped so a break cannot be farmed to buy back an absent
+  term. At most one band unlocks per window, so a
 motivated learner does not mortgage their first week back.
 
 ## The learner experience

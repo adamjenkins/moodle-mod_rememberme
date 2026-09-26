@@ -19,7 +19,7 @@
 
     The weekly completion matrix: learners down, weeks across.
 
-    Each cell shows the fraction of that week's frozen target the learner
+    Each cell shows the share of that week's study days the learner
     earned, and the grace credit spent to top that week up if any was. Weeks
     that fall inside a suspension window are marked and are outside the grading
     denominator entirely, so an empty cell in a suspended week is not a miss.
@@ -43,9 +43,9 @@
         * cells Array in column order, each with:
             * hasrecord Boolean Whether the learner has a row for that week
             * suspended Boolean Whether that week does not count
-            * fraction String The fraction of the target earned
-            * completed Number Items completed that week
-            * target Number The frozen target for that week
+            * fraction String The share of the week's study days met
+            * completed Number Study days that counted that week
+            * target Number Study days that week needed
             * hasgrace Boolean Whether grace was spent on that week
             * grace String How much grace was spent
 
@@ -59,16 +59,16 @@
         "rows": [
             {
                 "learner": "Aisha Karim",
-                "gracetotal": "0.20",
+                "gracetotal": "0.33",
                 "cells": [
                     {
                         "hasrecord": true,
                         "suspended": false,
-                        "fraction": "0.80",
-                        "completed": 16,
-                        "target": 20,
+                        "fraction": "0.67",
+                        "completed": 2,
+                        "target": 3,
                         "hasgrace": true,
-                        "grace": "0.20"
+                        "grace": "0.33"
                     },
                     {
                         "hasrecord": false,

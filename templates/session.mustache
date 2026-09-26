@@ -32,7 +32,9 @@
     Context variables required for this template:
     * cmid Number The course module id
     * audio Boolean Whether the audio cue is on by default
-    * weeklabel String Progress against this week's frozen target
+    * weeklabel String Study days so far this week, against the days the week needs
+    * todaylabel String Progress toward today counting as a study day, empty outside the graded weeks
+    * gradingexplained String One sentence telling the learner what earns a full grade
     * streaklabel String The learner's current streak, if any
     * hasstreak Boolean Whether to show the streak
     * loading String Placeholder text shown before the first question arrives
@@ -41,7 +43,9 @@
     {
         "cmid": 42,
         "audio": true,
-        "weeklabel": "0 of 20 this week",
+        "weeklabel": "1 of 3 study days this week",
+        "todaylabel": "Today: 4 of 20 questions",
+        "gradingexplained": "Your grade comes from coming back: study on 3 different days each week.",
         "streaklabel": "3 weeks in a row",
         "hasstreak": true,
         "loading": "Loading your next question..."
@@ -52,6 +56,7 @@
     <div class="rememberme-header d-flex flex-wrap align-items-center justify-content-between mb-3">
         <div class="rememberme-meta">
             <span class="rememberme-week badge bg-primary text-white" data-region="rememberme-week">{{weeklabel}}</span>
+            <span class="rememberme-today badge text-bg-secondary ms-1" data-region="rememberme-today"{{^todaylabel}} hidden{{/todaylabel}}>{{todaylabel}}</span>
             {{#hasstreak}}
                 <span class="rememberme-streak badge bg-success text-white ms-1" data-region="rememberme-streak">{{streaklabel}}</span>
             {{/hasstreak}}
@@ -62,6 +67,7 @@
         <button type="button" class="btn btn-link rememberme-audio" data-action="toggle-audio" aria-pressed="{{#audio}}true{{/audio}}{{^audio}}false{{/audio}}">
             {{#pix}}i/messagecontentaudio, core{{/pix}}
         </button>
+        <p class="rememberme-gradingexplained small text-muted w-100 mb-0 mt-1">{{gradingexplained}}</p>
     </div>
 
     <div class="progress rememberme-sessionprogress mb-3" role="progressbar" aria-label="{{#str}}sessionprogress, mod_rememberme{{/str}}" aria-valuemin="0" aria-valuenow="0" aria-valuemax="100" data-region="rememberme-progressbar-wrapper">
@@ -69,14 +75,6 @@
     </div>
 
     <div class="visually-hidden" role="status" aria-live="polite" data-region="rememberme-status"></div>
-
-    {{!
-        The celebration is a live region so it is announced, not merely seen.
-        It starts hidden and is revealed only when a week is actually cleared.
-    }}
-    <div class="rememberme-celebration alert alert-success text-center"
-         role="status" aria-live="polite"
-         data-region="rememberme-celebration" hidden></div>
 
     {{!
         The question must live inside a real form: core's own question JavaScript

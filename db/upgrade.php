@@ -165,5 +165,63 @@ function xmldb_rememberme_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026090107, 'rememberme');
     }
 
+    if ($oldversion < 2026090108) {
+        // Weeks are graded on study days rather than on an item count target.
+        // Nothing is dropped: the old target and count stay on every week row,
+        // and the new figures go in new columns beside them.
+        $table = new xmldb_table('rememberme');
+        $fields = [
+            new xmldb_field('studydays', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '3', 'maxchoices'),
+            new xmldb_field('studydaysfrom', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'studydays'),
+        ];
+        foreach ($fields as $field) {
+            if (!$dbman->field_exists($table, $field)) {
+                $dbman->add_field($table, $field);
+            }
+        }
+
+        $table = new xmldb_table('rememberme_weeks');
+        $fields = [
+            new xmldb_field('daysrequired', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '0', 'suspended'),
+            new xmldb_field('daysstudied', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '0', 'daysrequired'),
+            new xmldb_field('clearedmask', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '0', 'daysstudied'),
+        ];
+        foreach ($fields as $field) {
+            if (!$dbman->field_exists($table, $field)) {
+                $dbman->add_field($table, $field);
+            }
+        }
+
+        // Every activity that already exists switches now. A week that ended
+        // before this moment was worked under the old rule, so it is never
+        // scored lower than the old rule scored it.
+        $DB->set_field('rememberme', 'studydaysfrom', time(), ['studydaysfrom' => 0]);
+
+        // Rescoring reads the review log and pushes grades, which is too much
+        // work for an upgrade step and needs the current code, so it is queued.
+        foreach ($DB->get_fieldset_select('rememberme', 'id', '1 = 1') as $instanceid) {
+            \mod_rememberme\task\recalculate_weeks::queue((int)$instanceid);
+        }
+
+        upgrade_mod_savepoint(true, 2026090108, 'rememberme');
+    }
+
+    if ($oldversion < 2026090109) {
+        // The graded period is set as a start and an end of term rather than a
+        // start and a number of weeks. Existing activities end exactly where
+        // their weeks did, so no week moves and nothing is regraded by this.
+        $table = new xmldb_table('rememberme');
+        $field = new xmldb_field('termend', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'activeweeks');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        $DB->execute(
+            'UPDATE {rememberme} SET termend = coursestart + activeweeks * :week WHERE termend = 0',
+            ['week' => WEEKSECS]
+        );
+
+        upgrade_mod_savepoint(true, 2026090109, 'rememberme');
+    }
+
     return true;
 }

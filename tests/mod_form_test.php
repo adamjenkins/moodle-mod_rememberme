@@ -31,6 +31,9 @@ use mod_rememberme\local\bands;
  * @covers     \mod_rememberme_mod_form
  */
 final class mod_form_test extends \advanced_testcase {
+    /** @var int A fixed start of term, so the dates in these cases are exact. */
+    protected const TERMSTART = 1788220800;
+
     /** @var \mod_rememberme_mod_form The form under test. */
     protected \mod_rememberme_mod_form $form;
 
@@ -100,7 +103,8 @@ final class mod_form_test extends \advanced_testcase {
             'sessionsize' => 20,
             'newperday' => 10,
             'maxchoices' => 0,
-            'activeweeks' => 15,
+            'coursestart' => self::TERMSTART,
+            'termend' => self::TERMSTART + 15 * WEEKSECS,
             'gracebalance' => 1.0,
             'graceearnrate' => 0.25,
             'ontimegrace' => 0.5,
@@ -239,5 +243,34 @@ final class mod_form_test extends \advanced_testcase {
         $this->assertArrayHasKey('maxchoices', $this->validate(['maxchoices' => 2]));
         $this->assertArrayHasKey('gracebalance', $this->validate(['gracebalance' => -1]));
         $this->assertArrayHasKey('bandcategory[0]', $this->validate(['bandcategory' => []]));
+    }
+
+    /**
+     * The term must end after it starts.
+     *
+     * @return void
+     */
+    public function test_the_term_cannot_end_before_it_starts(): void {
+        $this->assertArrayHasKey('termend', $this->validate(['termend' => self::TERMSTART]));
+        $this->assertArrayHasKey('termend', $this->validate(['termend' => self::TERMSTART - DAYSECS]));
+        $this->assertArrayNotHasKey('termend', $this->validate(['termend' => self::TERMSTART + DAYSECS]));
+    }
+
+    /**
+     * A suspension window must fall within the term.
+     *
+     * @return void
+     */
+    public function test_a_suspension_must_fall_within_the_term(): void {
+        $inside = ['suspensionstart' => [self::TERMSTART + WEEKSECS], 'suspensionend' => [self::TERMSTART + 2 * WEEKSECS]];
+        $errors = $this->validate($inside);
+        $this->assertArrayNotHasKey('suspensionstart[0]', $errors);
+        $this->assertArrayNotHasKey('suspensionend[0]', $errors);
+
+        $early = ['suspensionstart' => [self::TERMSTART - DAYSECS], 'suspensionend' => [self::TERMSTART + DAYSECS]];
+        $this->assertArrayHasKey('suspensionstart[0]', $this->validate($early));
+
+        $late = ['suspensionstart' => [self::TERMSTART + 14 * WEEKSECS], 'suspensionend' => [self::TERMSTART + 16 * WEEKSECS]];
+        $this->assertArrayHasKey('suspensionend[0]', $this->validate($late));
     }
 }

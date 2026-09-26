@@ -98,16 +98,7 @@ class submit_answer extends external_api {
         [$html, $javascript] = $session->render_slot($slot, true);
         [$answered, $total] = $session->get_progress();
 
-        $scheduler = $session->get_scheduler();
-        $progress = helper::week_progress($scheduler, (int)$USER->id);
-
-        // Whether this answer was the one that finished the week. The client
-        // celebrates on the transition rather than on the state, so a learner
-        // who keeps going afterwards is congratulated once, not on every
-        // subsequent answer.
-        $weekcleared = $progress['target'] > 0
-            && $progress['done'] >= $progress['target']
-            && ($progress['done'] - 1) < $progress['target'];
+        $progress = helper::week_progress($session->get_scheduler(), (int)$USER->id);
 
         return [
             'correct' => $result['correct'],
@@ -119,11 +110,7 @@ class submit_answer extends external_api {
             'pause' => $result['correct']
                 ? (int)$instance->pausecorrect
                 : (int)$instance->pauseincorrect,
-            'weekdone' => $progress['done'],
-            'weektarget' => $progress['target'],
-            'streak' => $progress['streak'],
-            'weekcleared' => $weekcleared,
-        ];
+        ] + helper::progress_fields($progress);
     }
 
     /**
@@ -140,10 +127,6 @@ class submit_answer extends external_api {
             'answered' => new external_value(PARAM_INT, 'Questions answered in this session'),
             'total' => new external_value(PARAM_INT, 'Questions in this session'),
             'pause' => new external_value(PARAM_INT, 'Milliseconds to show feedback before advancing'),
-            'weekdone' => new external_value(PARAM_INT, 'Items completed this week'),
-            'weektarget' => new external_value(PARAM_INT, 'This week\'s frozen target'),
-            'streak' => new external_value(PARAM_INT, 'Consecutive weeks cleared'),
-            'weekcleared' => new external_value(PARAM_BOOL, 'Whether this answer completed the week'),
-        ]);
+        ] + helper::progress_returns());
     }
 }

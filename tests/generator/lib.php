@@ -64,6 +64,7 @@ class mod_rememberme_generator extends testing_module_generator {
             'grade' => 100,
             'completionweeks' => 0,
             'maxchoices' => 0,
+            'studydays' => 3,
         ];
 
         foreach ($defaults as $name => $value) {

@@ -61,6 +61,7 @@ function rememberme_add_instance(stdClass $data, $mform = null): int {
     if (empty($data->coursestart)) {
         $data->coursestart = $data->timecreated;
     }
+    rememberme_apply_term($data);
 
     $data->id = $DB->insert_record('rememberme', $data);
 
@@ -83,6 +84,7 @@ function rememberme_update_instance(stdClass $data, $mform = null): bool {
 
     $data->timemodified = time();
     $data->id = $data->instance;
+    rememberme_apply_term($data);
 
     $DB->update_record('rememberme', $data);
 
@@ -97,6 +99,11 @@ function rememberme_update_instance(stdClass $data, $mform = null): bool {
     $instance = $DB->get_record('rememberme', ['id' => $data->id], '*', MUST_EXIST);
     $scheduler = new \mod_rememberme\local\scheduler($instance);
     $scheduler->refresh_cached_due_dates();
+
+    // The term dates and the breaks decide which weeks are graded and how many
+    // study days each needs, so every week is rescored against the new ones.
+    // Each week keeps the full-week requirement it began with.
+    \mod_rememberme\task\recalculate_weeks::queue((int)$instance->id);
 
     return true;
 }
@@ -180,6 +187,27 @@ function rememberme_save_bands(stdClass $data): void {
         }
         $bandnumber++;
     }
+}
+
+/**
+ * Derive the number of graded weeks from the start and end of term.
+ *
+ * The term is set as two dates, but everything that walks the calendar counts
+ * weeks, so the count is kept alongside and derived here whenever the dates are
+ * saved. A partial last week is a week. Data that carries a week count but no
+ * end of term, such as a backup made before the end date existed, gets an end
+ * that falls exactly where its weeks did.
+ *
+ * @param stdClass $data Instance data with coursestart and termend or activeweeks.
+ */
+function rememberme_apply_term(stdClass $data): void {
+    $start = (int)($data->coursestart ?? 0);
+    if (!empty($data->termend) && (int)$data->termend > $start) {
+        $data->activeweeks = max(1, (int)ceil(((int)$data->termend - $start) / WEEKSECS));
+        return;
+    }
+    $data->activeweeks = max(1, (int)($data->activeweeks ?? 15));
+    $data->termend = $start + $data->activeweeks * WEEKSECS;
 }
 
 /**
@@ -299,6 +327,37 @@ function rememberme_update_grades(stdClass $instance, int $userid = 0, bool $nul
         rememberme_grade_item_update($instance, $grades);
     } else {
         rememberme_grade_item_update($instance);
+    }
+}
+
+/**
+ * Push one learner's grade and completion state after their weekly standing moved.
+ *
+ * Without this the gradebook only ever caught up when core happened to resync
+ * the item, and the weeks cleared completion rule was never re-evaluated at all.
+ *
+ * @param stdClass $instance The instance record.
+ * @param int $userid The learner.
+ */
+function rememberme_user_progress_changed(stdClass $instance, int $userid): void {
+    global $CFG;
+    require_once($CFG->libdir . '/completionlib.php');
+
+    if (!empty($instance->grade)) {
+        rememberme_update_grades($instance, $userid);
+    }
+
+    if (empty($instance->completionweeks)) {
+        return;
+    }
+    $cm = get_coursemodule_from_instance('rememberme', $instance->id, $instance->course);
+    if (!$cm) {
+        return;
+    }
+    $course = get_course($instance->course);
+    $completion = new completion_info($course);
+    if ($completion->is_enabled($cm) == COMPLETION_TRACKING_AUTOMATIC) {
+        $completion->update_state($cm, COMPLETION_UNKNOWN, $userid);
     }
 }
 

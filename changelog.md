@@ -5,6 +5,49 @@ All notable changes to this plugin are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Weeks are graded on study days: how many different days the learner studied,
+  against a number the teacher sets (new setting, 3 by default). A day counts
+  once the learner answers a session's worth of different questions or works
+  through everything on offer. This replaces an item count target that was often
+  out of reach: it was frozen at the learner's first visit rather than the start
+  of the week, assumed seven days of new items, and counted questions in locked
+  bands.
+- The page shows study days this week, progress toward today counting, and one
+  sentence saying what earns a full grade. The "week complete" message is gone.
+- The unfinished current week no longer lowers the grade.
+- The per day cap on new items resets at the same time of day as a study day.
+- "Week one begins" and "Active weeks" are replaced by a start of term and an
+  end of term, both dates. Suspension windows must fall within the term.
+- A week partly suspended, or cut short by the end of term, needs
+  proportionally fewer study days, rounded up. A week more than half suspended
+  is still not graded, and the page says it is a break week.
+- Grace for studying during a break now also covers the open days of a week
+  that is not graded, and counts different questions answered properly each
+  day, like a study day, instead of every answer. Answers from before the
+  upgrade are counted as they were.
+- Changing the term or the breaks rescores every week against them.
+
+### Fixed
+
+- Grades were never sent to the gradebook during normal use. They are now pushed
+  after every answer, and daily by a new scheduled task.
+- The "weeks cleared" completion rule was never re-evaluated after answering.
+- Before week one and after the last graded week, the weekly count stayed at 0.
+- "This week already counts as complete" was shown whenever today's new
+  questions were used up, whatever the state of the week.
+
+### Upgrading
+
+- Existing activities get an end of term exactly where their active weeks
+  ended, so no week moves.
+- Existing data is kept. Every week is rescored from the review log by an ad hoc
+  task queued during the upgrade. A week that began before the upgrade never
+  scores lower than it did, and its old target and count stay on the record.
+
 ## [0.2.0] - 2026-09-01
 
 ### Added

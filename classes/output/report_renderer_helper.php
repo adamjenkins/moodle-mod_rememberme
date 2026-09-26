@@ -523,8 +523,8 @@ class report_renderer_helper {
                     'hasrecord' => (bool)$record,
                     'suspended' => $suspended,
                     'fraction' => $record ? format_float((float)$record->fraction, 2) : '',
-                    'completed' => $record ? (int)$record->completed : 0,
-                    'target' => $record ? (int)$record->snapshottarget : 0,
+                    'completed' => $record ? (int)$record->daysstudied : 0,
+                    'target' => $record ? $this->scheduler->effective_required((int)$record->daysrequired, $week) : 0,
                     'hasgrace' => $grace > 0,
                     'grace' => format_float($grace, 2),
                 ];

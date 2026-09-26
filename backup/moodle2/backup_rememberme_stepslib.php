@@ -65,10 +65,10 @@ class backup_rememberme_activity_structure_step extends backup_questions_activit
         $rememberme = new backup_nested_element('rememberme', ['id'], [
             'name', 'intro', 'introformat', 'targetretention', 'sessionsize', 'newperday',
             'unlockmode', 'unlockinterval', 'stabilityfloor', 'masteryproportion', 'backstopdays',
-            'coursestart', 'activeweeks', 'gracebalance', 'graceearnrate', 'passthreshold',
+            'coursestart', 'activeweeks', 'termend', 'gracebalance', 'graceearnrate', 'passthreshold',
             'uselatency', 'audiocue', 'pausecorrect', 'pauseincorrect', 'grade',
             'completionweeks', 'questionbankcmid', 'ontimegrace', 'maxchoices',
-            'timecreated', 'timemodified',
+            'studydays', 'studydaysfrom', 'timecreated', 'timemodified',
         ]);
 
         // Teacher configuration: bands and suspension windows. Always backed up.
@@ -109,7 +109,7 @@ class backup_rememberme_activity_structure_step extends backup_questions_activit
         $weeks = new backup_nested_element('weeks');
         $week = new backup_nested_element('week', ['id'], [
             'userid', 'weekno', 'snapshottarget', 'snapshottaken', 'completed', 'fraction',
-            'graceapplied', 'suspended', 'timemodified',
+            'graceapplied', 'suspended', 'daysrequired', 'daysstudied', 'clearedmask', 'timemodified',
         ]);
 
         $sessions = new backup_nested_element('sessions');

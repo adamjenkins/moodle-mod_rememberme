@@ -244,10 +244,16 @@ class mod_rememberme_mod_form extends moodleform_mod {
         $mform->addElement('date_time_selector', 'coursestart', get_string('coursestart', 'rememberme'));
         $mform->addHelpButton('coursestart', 'coursestart', 'rememberme');
 
-        $mform->addElement('text', 'activeweeks', get_string('activeweeks', 'rememberme'), ['size' => 5]);
-        $mform->setType('activeweeks', PARAM_INT);
-        $mform->setDefault('activeweeks', 15);
-        $mform->addHelpButton('activeweeks', 'activeweeks', 'rememberme');
+        $mform->addElement('date_time_selector', 'termend', get_string('termend', 'rememberme'));
+        $mform->setDefault('termend', time() + 15 * WEEKSECS);
+        $mform->addHelpButton('termend', 'termend', 'rememberme');
+
+        // A select rather than free text: the only meaningful values are the
+        // days of a week, so there is nothing to validate a typed value into.
+        $mform->addElement('select', 'studydays', get_string('studydays', 'rememberme'), array_combine(range(1, 7), range(1, 7)));
+        $mform->setType('studydays', PARAM_INT);
+        $mform->setDefault('studydays', 3);
+        $mform->addHelpButton('studydays', 'studydays', 'rememberme');
 
         $mform->addElement('text', 'gracebalance', get_string('gracebalance', 'rememberme'), ['size' => 5]);
         $mform->setType('gracebalance', PARAM_FLOAT);
@@ -490,8 +496,13 @@ class mod_rememberme_mod_form extends moodleform_mod {
         if ($data['maxchoices'] < 0 || $data['maxchoices'] === 1 || $data['maxchoices'] === 2) {
             $errors['maxchoices'] = get_string('errormaxchoices', 'rememberme');
         }
-        if ($data['activeweeks'] < 1) {
-            $errors['activeweeks'] = get_string('errorpositive', 'rememberme');
+        if (isset($data['studydays']) && ($data['studydays'] < 1 || $data['studydays'] > 7)) {
+            $errors['studydays'] = get_string('errorstudydays', 'rememberme');
+        }
+        $termstart = (int)($data['coursestart'] ?? 0);
+        $termend = (int)($data['termend'] ?? 0);
+        if ($termend <= $termstart) {
+            $errors['termend'] = get_string('errortermbackwards', 'rememberme');
         }
         if ($data['gracebalance'] < 0) {
             $errors['gracebalance'] = get_string('errornonnegative', 'rememberme');
@@ -575,6 +586,16 @@ class mod_rememberme_mod_form extends moodleform_mod {
             $end = (int)($data['suspensionend'][$index] ?? 0);
             if (!empty($start) && !empty($end) && $end <= $start) {
                 $errors['suspensionend[' . $index . ']'] = get_string('errorwindowbackwards', 'rememberme');
+                continue;
+            }
+            // A break is a pause in the term. One outside it would pause
+            // nothing that is graded, and would silently stop the scheduling
+            // clock for everyone studying before or after the term.
+            if (!empty($start) && (int)$start < $termstart) {
+                $errors['suspensionstart[' . $index . ']'] = get_string('errorwindowoutsideterm', 'rememberme');
+            }
+            if (!empty($end) && $termend > $termstart && (int)$end > $termend) {
+                $errors['suspensionend[' . $index . ']'] = get_string('errorwindowoutsideterm', 'rememberme');
             }
         }
 

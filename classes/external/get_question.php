@@ -69,13 +69,15 @@ class get_question extends external_api {
         $session = new session($instance, $context);
 
         if (!$session->load_or_start((int)$USER->id)) {
-            return helper::empty_payload($instance, $context, (int)$USER->id);
+            // Nothing could be offered at all: the learner has done everything
+            // asked of them for now.
+            return helper::empty_payload($session, (int)$USER->id, true);
         }
 
         $slot = $session->next_slot();
         if ($slot === null) {
             $session->finish();
-            return helper::empty_payload($instance, $context, (int)$USER->id);
+            return helper::empty_payload($session, (int)$USER->id, false);
         }
 
         [$html, $javascript] = $session->render_slot($slot);
@@ -89,7 +91,7 @@ class get_question extends external_api {
             'answered' => $answered,
             'total' => $total,
             'message' => '',
-        ];
+        ] + helper::progress_fields(helper::week_progress($session->get_scheduler(), (int)$USER->id));
     }
 
     /**
@@ -106,6 +108,6 @@ class get_question extends external_api {
             'answered' => new external_value(PARAM_INT, 'Questions answered in this session'),
             'total' => new external_value(PARAM_INT, 'Questions in this session'),
             'message' => new external_value(PARAM_RAW, 'Message shown when there is no question'),
-        ]);
+        ] + helper::progress_returns());
     }
 }

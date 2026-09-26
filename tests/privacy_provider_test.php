@@ -187,6 +187,9 @@ final class privacy_provider_test extends \core_privacy\tests\provider_testcase 
             'fraction' => 0.75,
             'graceapplied' => 0.0,
             'suspended' => 0,
+            'daysrequired' => 3,
+            'daysstudied' => 2,
+            'clearedmask' => 5,
             'timemodified' => $now,
         ]);
 
@@ -393,6 +396,9 @@ final class privacy_provider_test extends \core_privacy\tests\provider_testcase 
         $this->assertCount(1, $weeks->weeks);
         $this->assertEquals(1, $weeks->weeks[0]->weekno);
         $this->assertEquals(9, $weeks->weeks[0]->completed);
+        $this->assertEquals(2, $weeks->weeks[0]->daysstudied);
+        $this->assertEquals(3, $weeks->weeks[0]->daysrequired);
+        $this->assertSame('1, 3', $weeks->weeks[0]->clearedmask, 'cleared days are exported readably');
 
         $bands = $writer->get_related_data([], 'bands');
         $this->assertCount(1, $bands->bands);

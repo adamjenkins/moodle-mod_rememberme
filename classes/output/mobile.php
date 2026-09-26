@@ -18,7 +18,6 @@ namespace mod_rememberme\output;
 
 use mod_rememberme\local\scheduler;
 use mod_rememberme\local\session;
-use mod_rememberme\local\weeks;
 
 /**
  * Moodle app views for mod_rememberme.
@@ -65,21 +64,28 @@ class mobile {
         $data = [
             'cmid' => $cmid,
             'name' => format_string($instance->name),
-        ] + self::progress_data($scheduler, (int)$USER->id);
+            'gradingexplained' => get_string('gradingexplained', 'rememberme', [
+                'days' => $scheduler->required_study_days(),
+                'items' => max(1, (int)$instance->sessionsize),
+            ]),
+        ];
 
         // A teacher may open the activity in the app but must not accrue
         // schedule records of their own, exactly as on the web.
         if (!has_capability('mod/rememberme:attempt', $context)) {
             $data['hasquestion'] = false;
             $data['message'] = get_string('nothingduedesc', 'rememberme');
-            return self::view($data, []);
+            return self::view($data + self::progress_data($scheduler, (int)$USER->id), []);
         }
 
         $session = new session($instance, $context);
         if (!$session->load_or_start((int)$USER->id)) {
+            // Nothing could be offered at all, so today counts. Recorded
+            // before the figures below are read, so they already show it.
+            $scheduler->mark_day_cleared((int)$USER->id);
             $data['hasquestion'] = false;
             $data['message'] = get_string('nothingduedesc', 'rememberme');
-            return self::view($data, []);
+            return self::view($data + self::progress_data($scheduler, (int)$USER->id), []);
         }
 
         $slot = $session->next_slot();
@@ -87,8 +93,9 @@ class mobile {
             $session->finish();
             $data['hasquestion'] = false;
             $data['message'] = get_string('nothingduedesc', 'rememberme');
-            return self::view($data, []);
+            return self::view($data + self::progress_data($scheduler, (int)$USER->id), []);
         }
+        $data += self::progress_data($scheduler, (int)$USER->id);
 
         [$html] = $session->render_slot($slot);
         $quba = $session->get_quba();
@@ -145,23 +152,8 @@ class mobile {
      * @return array Template data.
      */
     protected static function progress_data(scheduler $scheduler, int $userid): array {
-        global $DB;
-
         $now = time();
-        $weekcalc = $scheduler->get_weeks();
-        $weekno = $weekcalc->week_for($now);
-
-        $week = $DB->get_record('rememberme_weeks', [
-            'rememberme' => $scheduler->get_instance_id(),
-            'userid' => $userid,
-            'weekno' => $weekno,
-        ]);
-
-        $fractions = $DB->get_records_menu('rememberme_weeks', [
-            'rememberme' => $scheduler->get_instance_id(),
-            'userid' => $userid,
-        ], 'weekno ASC', 'weekno, fraction');
-        $streak = weeks::streak(array_map('floatval', $fractions), $weekno);
+        $progress = \mod_rememberme\external\helper::week_progress($scheduler, $userid, $now);
 
         // The number of items a session would actually offer, which includes new
         // items under the per day cap. Counting only reviews here reported "0
@@ -170,10 +162,10 @@ class mobile {
 
         return [
             'due' => $due,
-            'weekdone' => $week ? (int)$week->completed : 0,
-            'weektarget' => $week ? (int)$week->snapshottarget : 0,
-            'streak' => $streak,
-            'hasstreak' => $streak > 0,
+            'weeklabel' => $progress['weeklabel'],
+            'todaylabel' => $progress['todaylabel'],
+            'streak' => $progress['streak'],
+            'hasstreak' => $progress['streak'] > 0,
         ];
     }
 

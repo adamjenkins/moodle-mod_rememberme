@@ -36,8 +36,9 @@
     * due Number Items a session would offer right now
     * answered Number Questions answered so far in this session
     * total Number Questions in this session
-    * weekdone Number Items completed this week
-    * weektarget Number This week's frozen target
+    * weeklabel String Study days so far this week, against the days the week needs
+    * todaylabel String Progress toward today counting as a study day, empty outside the graded weeks
+    * gradingexplained String One sentence telling the learner what earns a full grade
     * streak Number Consecutive weeks cleared
     * hasstreak Boolean Whether to show the streak
 
@@ -51,8 +52,9 @@
         "due": 12,
         "answered": 3,
         "total": 20,
-        "weekdone": 8,
-        "weektarget": 20,
+        "weeklabel": "1 of 3 study days this week",
+        "todaylabel": "Today: 4 of 20 questions",
+        "gradingexplained": "Your grade comes from coming back: study on 3 different days each week.",
         "streak": 3,
         "hasstreak": true
     }
@@ -61,8 +63,13 @@
     <ion-card>
         <ion-card-content>
             <ion-chip color="primary">
-                <ion-label>{{weekdone}} / {{weektarget}} {{#str}} weekprogresslabel, mod_rememberme {{/str}}</ion-label>
+                <ion-label>{{weeklabel}}</ion-label>
             </ion-chip>
+            {{#todaylabel}}
+                <ion-chip>
+                    <ion-label>{{todaylabel}}</ion-label>
+                </ion-chip>
+            {{/todaylabel}}
             <ion-chip>
                 <ion-label>{{due}} {{#str}} itemsdue, mod_rememberme {{/str}}</ion-label>
             </ion-chip>
@@ -71,6 +78,7 @@
                     <ion-label>{{streak}} {{#str}} streaklabel, mod_rememberme {{/str}}</ion-label>
                 </ion-chip>
             {{/hasstreak}}
+            <p class="mod_rememberme-gradingexplained">{{gradingexplained}}</p>
         </ion-card-content>
     </ion-card>
 

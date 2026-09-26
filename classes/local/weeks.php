@@ -17,28 +17,20 @@
 namespace mod_rememberme\local;
 
 /**
- * Course wide week boundaries and the frozen weekly target.
+ * Course wide week boundaries and weekly scoring.
  *
- * Two rules here are load bearing.
- *
- * First, week boundaries are course wide: a fixed weekday and time, identical
- * for every learner regardless of when they enrolled. This differs on purpose
- * from Mode A band unlocking, which runs from each learner's first session.
+ * Week boundaries are course wide: a fixed weekday and time, identical for
+ * every learner regardless of when they enrolled. This differs on purpose from
+ * Mode A band unlocking, which runs from each learner's first session.
  * Unlocking is a per learner pacing mechanism; grading is a calendar.
  *
- * Second, and this is the one that is broken if done the obvious way, the
- * week's denominator is frozen when the week starts. It is the items due at
- * that moment plus the new items the learner may draw that week. Items that
- * become due again during the week, because the learner answered them and the
- * interval was short, do not enlarge that week's target; they roll into next
- * week's snapshot.
- *
- * Under a rolling denominator that recomputes as items come due, a learner who
- * answers everything asked of them can never reach 100 per cent, because each
- * answer breeds a further review inside the same week. The finish line recedes
- * as they approach it. A diligent learner doing every scheduled item scores
- * 1.00 under the snapshot rule and around 0.60 under a rolling one,
- * indefinitely. See the test suite, which asserts exactly that.
+ * A week is scored on study days: how many different days the learner came
+ * back and did what was asked, against a number the teacher sets. It replaced
+ * an item count target frozen at the learner's first visit, which a learner
+ * could clear in one sitting, and which was often out of reach anyway because
+ * it assumed seven days of new items and counted items in locked bands.
+ * score_week() is kept because weeks that began before the change are never
+ * scored lower than it scored them.
  *
  * @package    mod_rememberme
  * @copyright  2026 Adam Jenkins <adam@wisecat.net>
@@ -129,7 +121,7 @@ class weeks {
     }
 
     /**
-     * Score one week from its frozen target and the work actually done.
+     * Score one week under the item count rule used before study days.
      *
      * A week with nothing due scores 1.0 automatically: a learner is never
      * penalised for being on top of their reviews.
@@ -143,6 +135,20 @@ class weeks {
             return 1.0;
         }
         return min(1.0, max(0.0, $completed / $target));
+    }
+
+    /**
+     * Score one week from the study days it needs and the days that counted.
+     *
+     * @param int $required Study days needed for the week to count in full.
+     * @param int $studied Days that counted.
+     * @return float Fraction between 0 and 1.
+     */
+    public static function score_days(int $required, int $studied): float {
+        if ($required <= 0) {
+            return 1.0;
+        }
+        return min(1.0, max(0.0, $studied / $required));
     }
 
     /**

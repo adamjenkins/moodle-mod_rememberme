@@ -454,34 +454,37 @@ final class session_integration_test extends \advanced_testcase {
     }
 
     /**
-     * The weekly target is frozen when the week is first touched.
+     * The study days a week needs are frozen on its record.
+     *
+     * A teacher changing the setting mid week must not move the finish line
+     * under a learner already working toward it; the new value applies from
+     * the next week.
      */
-    public function test_week_snapshot_is_frozen(): void {
+    public function test_required_study_days_are_frozen_on_the_week(): void {
         global $DB;
 
         $now = time();
-        $scheduler = new scheduler($this->instance_record());
-        $weekno = $scheduler->get_weeks()->week_for($now);
-
-        $week = $scheduler->ensure_week_snapshot((int)$this->student->id, $weekno, $now);
-        $target = (int)$week->snapshottarget;
-        $this->assertGreaterThan(0, $target);
-
-        // Answering does not enlarge this week's target.
         $session = new session($this->instance_record(), $this->context);
         $session->start((int)$this->student->id, $now);
         $slot = $session->next_slot();
         $prefix = $session->get_quba()->get_field_prefix($slot);
         $session->process_response($slot, [$prefix . 'answer' => 'frog'], $now);
 
-        $after = $DB->get_record('rememberme_weeks', [
-            'rememberme' => $this->instance->id,
-            'userid' => $this->student->id,
-            'weekno' => $weekno,
-        ], '*', MUST_EXIST);
+        $scheduler = new scheduler($this->instance_record());
+        $weekno = $scheduler->get_weeks()->week_for($now);
+        $params = ['rememberme' => $this->instance->id, 'userid' => $this->student->id, 'weekno' => $weekno];
+        $this->assertSame(3, (int)$DB->get_field('rememberme_weeks', 'daysrequired', $params));
 
-        $this->assertSame($target, (int)$after->snapshottarget, 'the weekly target must never grow mid week');
-        $this->assertSame(1, (int)$after->completed);
+        $DB->set_field('rememberme', 'studydays', 5, ['id' => $this->instance->id]);
+        $scheduler = new scheduler($this->instance_record());
+        $scheduler->rescore_week((int)$this->student->id, $weekno, $now);
+
+        $this->assertSame(
+            3,
+            (int)$DB->get_field('rememberme_weeks', 'daysrequired', $params),
+            'the week already under way keeps the number it started with'
+        );
+        $this->assertSame(5, $scheduler->required_study_days(), 'later weeks use the new setting');
     }
 
     /**

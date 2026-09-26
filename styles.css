@@ -40,41 +40,6 @@
     }
 }
 
-/* The week-cleared celebration. A brief, single pulse: this fires at most once
-   a week, so it can afford to be noticed, and it must not become wallpaper. */
-.path-mod-rememberme .rememberme-celebration {
-    margin-bottom: 1rem;
-}
-
-@keyframes rememberme-celebrate {
-    0% {
-        transform: scale(0.96);
-        opacity: 0;
-    }
-
-    60% {
-        transform: scale(1.02);
-        opacity: 1;
-    }
-
-    100% {
-        transform: scale(1);
-        opacity: 1;
-    }
-}
-
-.path-mod-rememberme .rememberme-celebrate {
-    animation: rememberme-celebrate 420ms ease-out;
-}
-
-/* Anyone who has asked for less motion still gets the message, without the
-   movement. */
-@media (prefers-reduced-motion: reduce) {
-    .path-mod-rememberme .rememberme-celebrate {
-        animation: none;
-    }
-}
-
 /* The hand of options: a single response multiple choice question is answered
    by clicking an option, not by choosing a radio button and pressing a submit
    button. The look is deliberately not the theme's question styling, because

@@ -73,7 +73,9 @@ final class engagement_test extends \advanced_testcase {
             );
         }
 
-        $module = $generator->create_module('rememberme', ['course' => $course->id]);
+        // A session's worth is three questions, so the five in the pool are
+        // enough to make a day count, and one question is well short of it.
+        $module = $generator->create_module('rememberme', ['course' => $course->id, 'sessionsize' => 3]);
         $generator->get_plugin_generator('mod_rememberme')
             ->create_band((int)$module->id, (int)$category->id, 0);
 
@@ -101,21 +103,34 @@ final class engagement_test extends \advanced_testcase {
     }
 
     /**
+     * The start of the current course wide day, plus a minute.
+     *
+     * Answers in these tests are spread over seconds or hours from here, and
+     * must all land on the same study day for the assertions to mean anything.
+     *
+     * @param scheduler $scheduler The scheduler.
+     * @return int Unix timestamp.
+     */
+    protected function early_today(scheduler $scheduler): int {
+        [$daystart] = $scheduler->day_bounds(time());
+        return $daystart + MINSECS;
+    }
+
+    /**
      * Repeating one question cannot stand in for covering the queue.
      *
      * This is the measured exploit: seven wrong attempts on one question used to
-     * clear a target of five while four questions were never touched.
+     * clear a target of five while four questions were never touched. It
+     * applies to study days the same way: repeating one question all day does
+     * not make the day count.
      *
      * @return void
      */
-    public function test_one_question_cannot_satisfy_a_whole_week(): void {
+    public function test_one_question_cannot_make_a_day_count(): void {
         $scheduler = new scheduler($this->instance);
-        $now = time();
-        $weekno = $scheduler->get_weeks()->week_for($now);
-        $target = (int)$scheduler->ensure_week_snapshot((int)$this->student->id, $weekno, $now)->snapshottarget;
-        $this->assertGreaterThan(1, $target, 'the fixture needs a target worth gaming');
+        $now = $this->early_today($scheduler);
 
-        for ($i = 0; $i < $target + 3; $i++) {
+        for ($i = 0; $i < 7; $i++) {
             $scheduler->record_attempt(
                 (int)$this->student->id,
                 $this->entries[0],
@@ -124,13 +139,16 @@ final class engagement_test extends \advanced_testcase {
                 0.0,
                 5000,
                 1,
-                $now + $i * HOURSECS
+                $now + $i * MINSECS
             );
         }
 
         $week = $this->week_record($scheduler, $now);
-        $this->assertSame(1, (int)$week->completed, 'one question is worth one point, however often it is answered');
-        $this->assertLessThan(1.0, (float)$week->fraction, 'hammering one question must not clear the week');
+        $today = $scheduler->today_progress((int)$this->student->id, $now + HOURSECS);
+        $this->assertSame(1, $today['done'], 'one question is worth one, however often it is answered');
+        $this->assertFalse($today['counts']);
+        $this->assertSame(0, (int)$week->daysstudied, 'hammering one question must not make the day count');
+        $this->assertEqualsWithDelta(0.0, (float)$week->fraction, 1.0E-9);
     }
 
     /**
@@ -141,9 +159,9 @@ final class engagement_test extends \advanced_testcase {
      *
      * @return void
      */
-    public function test_distinct_questions_each_earn_credit(): void {
+    public function test_distinct_questions_make_a_day_count(): void {
         $scheduler = new scheduler($this->instance);
-        $now = time();
+        $now = $this->early_today($scheduler);
 
         foreach ($this->entries as $index => $entry) {
             $scheduler->record_attempt(
@@ -159,7 +177,9 @@ final class engagement_test extends \advanced_testcase {
         }
 
         $week = $this->week_record($scheduler, $now);
-        $this->assertSame(count($this->entries), (int)$week->completed);
+        $this->assertSame(1, (int)$week->daysstudied);
+        $this->assertSame(3, (int)$week->daysrequired);
+        $this->assertEqualsWithDelta(1 / 3, (float)$week->fraction, 1.0E-4);
     }
 
     /**
@@ -169,7 +189,7 @@ final class engagement_test extends \advanced_testcase {
      */
     public function test_an_unread_answer_does_not_count(): void {
         $scheduler = new scheduler($this->instance);
-        $now = time();
+        $now = $this->early_today($scheduler);
 
         foreach ($this->entries as $index => $entry) {
             $scheduler->record_attempt(
@@ -185,7 +205,8 @@ final class engagement_test extends \advanced_testcase {
         }
 
         $week = $this->week_record($scheduler, $now);
-        $this->assertSame(0, (int)$week->completed, 'clicking through must earn nothing');
+        $this->assertSame(0, $scheduler->today_progress((int)$this->student->id, $now + HOURSECS)['done']);
+        $this->assertSame(0, (int)$week->daysstudied, 'clicking through must earn nothing');
     }
 
     /**

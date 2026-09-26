@@ -39,7 +39,7 @@ const SELECTORS = {
     progressbar: '[data-region="rememberme-progressbar"]',
     week: '[data-region="rememberme-week"]',
     streak: '[data-region="rememberme-streak"]',
-    celebration: '[data-region="rememberme-celebration"]',
+    today: '[data-region="rememberme-today"]',
     audiotoggle: '[data-action="toggle-audio"]',
     choice: '[data-action="choose"]',
 };
@@ -252,6 +252,7 @@ class Session {
                 args: {cmid: this.cmid},
             }])[0]
         ).then((response) => {
+            this.updateWeek(response);
             if (!response.hasquestion) {
                 return this.showComplete(response.message);
             }
@@ -297,12 +298,8 @@ class Session {
         ).then((result) => {
             this.cue.play(result.correct);
             this.updateProgress(result.answered, result.total);
-            this.updateWeek(result.weekdone, result.weektarget, result.streak);
+            this.updateWeek(result);
             this.announce(result.correct);
-
-            if (result.weekcleared) {
-                this.celebrateWeek(result.streak);
-            }
 
             this.replaceQuestion(result.html, result.javascript);
 
@@ -397,33 +394,31 @@ class Session {
     }
 
     /**
-     * Update the weekly progress figures.
+     * Update the weekly and daily progress figures.
      *
-     * The weekly target is frozen at the start of the week, so this number never
-     * creeps upward as the learner works. That is the whole point of the
-     * snapshot rule: a progress indicator that grows as you approach it is worse
-     * than none at all.
+     * The wording comes from the server, which computes it from the review log
+     * the grade is computed from, so the badge and the gradebook cannot drift.
+     * Deliberately there is no "week complete" moment: the activity wants
+     * learners back on several days, and telling them they are done for the
+     * week says the opposite.
      *
-     * @param {Number} done Items completed this week.
-     * @param {Number} target The frozen weekly target.
-     * @param {Number} streak Consecutive weeks cleared.
+     * @param {Object} progress Response fields weeklabel, todaylabel and streak.
      */
-    updateWeek(done, target, streak) {
+    updateWeek(progress) {
         const week = this.root.querySelector(SELECTORS.week);
-        if (week && target > 0) {
-            getString('progressthisweek', 'rememberme', {done, target})
-                .then((text) => {
-                    week.textContent = text;
-                    return text;
-                })
-                .catch(() => {
-                    return null;
-                });
+        if (week && progress.weeklabel) {
+            week.textContent = progress.weeklabel;
+        }
+
+        const today = this.root.querySelector(SELECTORS.today);
+        if (today) {
+            today.textContent = progress.todaylabel;
+            today.hidden = !progress.todaylabel;
         }
 
         const streakRegion = this.root.querySelector(SELECTORS.streak);
-        if (streakRegion && streak > 0) {
-            getString('streakweeks', 'rememberme', streak)
+        if (streakRegion && progress.streak > 0) {
+            getString('streakweeks', 'rememberme', progress.streak)
                 .then((text) => {
                     streakRegion.textContent = text;
                     return text;
@@ -432,51 +427,6 @@ class Session {
                     return null;
                 });
         }
-    }
-
-    /**
-     * Mark the moment the learner finishes a week.
-     *
-     * Fired on the transition, not on the state, so somebody who carries on
-     * working is congratulated once rather than after every further answer.
-     *
-     * The message is written into the live region as well as shown, because a
-     * congratulation nobody hears is not a congratulation. The animation is
-     * suppressed for anyone who has asked for reduced motion; the message still
-     * appears.
-     *
-     * @param {Number} streak Consecutive weeks cleared, including this one.
-     */
-    celebrateWeek(streak) {
-        const region = this.root.querySelector(SELECTORS.celebration);
-        if (!region) {
-            return;
-        }
-
-        const key = streak > 1 ? 'weekclearedstreak' : 'weekcleared';
-        const param = streak > 1 ? streak : null;
-
-        getString(key, 'rememberme', param)
-            .then((text) => {
-                region.textContent = text;
-                region.hidden = false;
-
-                const reduced = window.matchMedia
-                    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-                if (!reduced) {
-                    region.classList.remove('rememberme-celebrate');
-                    // Reading offsetWidth restarts the animation if the learner
-                    // clears two weeks without reloading the page.
-                    void region.offsetWidth;
-                    region.classList.add('rememberme-celebrate');
-                }
-
-                this.cue.play(true);
-                return text;
-            })
-            .catch(() => {
-                return null;
-            });
     }
 
     /**

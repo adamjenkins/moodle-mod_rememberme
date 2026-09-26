@@ -441,7 +441,8 @@ class scheduler {
     protected function count_new_today(int $userid, int $now): int {
         global $DB;
 
-        $daystart = usergetmidnight($now);
+        // The same course wide day that study days are counted on.
+        [$daystart] = $this->day_bounds($now);
         return $DB->count_records_select(
             'rememberme_schedule',
             'rememberme = :instanceid AND userid = :userid AND timecreated >= :daystart',
@@ -481,12 +482,7 @@ class scheduler {
         $now = $now ?? time();
         $clock = $this->get_clock();
 
-        // Freeze this week's target before anything about the learner's state
-        // changes. Taken afterwards, the snapshot would count the item now being
-        // answered as already seen and understate the denominator by one for
-        // every answer given before the week record existed.
         $weekno = $this->get_weeks()->week_for($now);
-        $this->ensure_week_snapshot($userid, $weekno, $now);
 
         $existing = $this->get_state($userid, $questionbankentryid);
 
@@ -691,7 +687,7 @@ class scheduler {
     }
 
     /**
-     * Count one completed item toward the current week.
+     * Rescore the week containing an answer, after the answer was logged.
      *
      * @param int $userid The learner.
      * @param int $weekno The week number.
@@ -699,79 +695,347 @@ class scheduler {
      * @param int $now Current time.
      */
     protected function record_week_progress(int $userid, int $weekno, bool $insuspension, int $now): void {
-        global $DB;
-
-        if ($weekno < 1 || $weekno > (int)$this->instance->activeweeks) {
-            return;
+        // Work during a suspension window is scored like any other, but a
+        // week more than half suspended is out of the denominator anyway, so
+        // it cannot lose grade credit. It feeds the grace pool instead, at
+        // final grade calculation.
+        if ($this->rescore_week($userid, $weekno, $now) !== null) {
+            $this->progress_changed($userid);
         }
-
-        $week = $this->ensure_week_snapshot($userid, $weekno, $now);
-
-        // Count DISTINCT questions engaged with this week, not attempts. Adding
-        // one per attempt let a learner clear a whole week by answering a single
-        // question wrong over and over, since a wrong answer brings it straight
-        // back: measured at seven attempts on one question clearing a target of
-        // five, with four questions never touched.
-        //
-        // Work during a suspension window cannot lose grade credit, and the week
-        // itself is out of the denominator, so it is counted but does not move a
-        // fraction. It feeds the grace pool instead, at final grade calculation.
-        $completed = $this->count_week_completed($userid, $weekno);
-        $fraction = weeks::score_week((int)$week->snapshottarget, $completed);
-
-        $DB->update_record('rememberme_weeks', (object)[
-            'id' => $week->id,
-            'completed' => $completed,
-            'fraction' => $fraction,
-            'timemodified' => $now,
-        ]);
     }
 
     /**
-     * How many distinct questions the learner has genuinely engaged with this week.
+     * Whether a week number falls inside the graded calendar.
+     *
+     * @param int $weekno The week number.
+     * @return bool True for weeks one to activeweeks.
+     */
+    public function is_graded_week(int $weekno): bool {
+        return $weekno >= 1 && $weekno <= (int)$this->instance->activeweeks;
+    }
+
+    /**
+     * The study days a week needs, as the activity is configured now.
+     *
+     * @return int Between one and seven.
+     */
+    public function required_study_days(): int {
+        return min(7, max(1, (int)($this->instance->studydays ?? 3)));
+    }
+
+    /**
+     * The end of term, never later than the last graded week.
+     *
+     * @return int Unix timestamp.
+     */
+    public function term_end(): int {
+        $start = (int)$this->instance->coursestart;
+        $end = $start + (int)$this->instance->activeweeks * WEEKSECS;
+        $termend = (int)($this->instance->termend ?? 0);
+        return $termend > $start ? min($end, $termend) : $end;
+    }
+
+    /**
+     * The share of a week that is open for study: inside the term and not suspended.
+     *
+     * @param int $weekno The week number.
+     * @return float Between 0 and 1.
+     */
+    public function open_fraction(int $weekno): float {
+        [$start, $end] = $this->get_weeks()->week_bounds($weekno);
+        $start = max($start, (int)$this->instance->coursestart);
+        $end = min($end, $this->term_end());
+        if ($end <= $start) {
+            return 0.0;
+        }
+        $open = ($end - $start) - $this->get_clock()->suspended_overlap($start, $end);
+        return max(0.0, min(1.0, $open / WEEKSECS));
+    }
+
+    /**
+     * The study days a week actually needs, given how much of it is open.
+     *
+     * A full week needs the full number. A week shortened by a break, or cut
+     * off by the end of term, needs the same share of it, rounded up so a
+     * shortened week still asks for something, and never less than one day. A
+     * week that is mostly suspended never gets here: it is not graded at all.
+     *
+     * @param int $base Study days a full week needs.
+     * @param int $weekno The week number.
+     * @return int Between one and the base.
+     */
+    public function effective_required(int $base, int $weekno): int {
+        $base = max(1, $base);
+        $open = $this->open_fraction($weekno);
+        if ($open >= 1.0 - 1.0E-9) {
+            return $base;
+        }
+        // The small allowance stops a week that is open for exactly two
+        // sevenths of 7 days from rounding up to three on floating point noise.
+        return max(1, min($base, (int)ceil($base * $open - 1.0E-6)));
+    }
+
+    /**
+     * The course wide day containing a moment.
+     *
+     * Days are anchored to the start of week one, the same way weeks are, so
+     * every week is exactly seven of them and a day never straddles two weeks.
+     * The per day cap on new items resets on the same boundary, so "today"
+     * means one thing everywhere in the activity.
+     *
+     * @param int $time Unix timestamp.
+     * @return array Two element list of start and end unix timestamps.
+     */
+    public function day_bounds(int $time): array {
+        $coursestart = (int)$this->instance->coursestart;
+        $start = $coursestart + (int)floor(($time - $coursestart) / DAYSECS) * DAYSECS;
+        return [$start, $start + DAYSECS];
+    }
+
+    /**
+     * Which day of its week a moment falls on.
+     *
+     * @param int $weekno The week number.
+     * @param int $time Unix timestamp inside that week.
+     * @return int Zero to six.
+     */
+    protected function day_index(int $weekno, int $time): int {
+        [$weekstart] = $this->get_weeks()->week_bounds($weekno);
+        return min(6, max(0, (int)floor(($time - $weekstart) / DAYSECS)));
+    }
+
+    /**
+     * Distinct questions genuinely engaged with on each day of a week.
      *
      * Distinct, so repeating one question cannot stand in for covering the
-     * queue. Engaged, so answers submitted too fast to have been read do not
-     * count. Both conditions are read from the review log rather than kept as a
-     * running total, so the figure can always be recomputed from the record of
-     * what actually happened.
+     * queue: a wrong answer brings the item straight back, and counting
+     * attempts once let seven answers to one question clear a target of five.
+     * Engaged, so answers submitted too fast to have been read do not count.
+     * Read from the review log by timestamp rather than kept as a running
+     * total, so the figure can always be recomputed from what happened, and so
+     * a change to the week one start date regroups past answers correctly.
      *
      * @param int $userid The learner.
      * @param int $weekno The week number.
-     * @return int Distinct questions engaged with.
+     * @return array Seven counts, keyed zero to six.
      */
-    public function count_week_completed(int $userid, int $weekno): int {
+    public function day_counts(int $userid, int $weekno): array {
         global $DB;
 
-        $sql = "SELECT COUNT(DISTINCT questionbankentryid)
-                  FROM {rememberme_review_log}
-                 WHERE rememberme = :instanceid
-                   AND userid = :userid
-                   AND weekno = :weekno
-                   AND (latency IS NULL OR latency >= :minlatency)";
+        [$start, $end] = $this->get_weeks()->week_bounds($weekno);
+        $rows = $DB->get_recordset_select(
+            'rememberme_review_log',
+            'rememberme = :instanceid AND userid = :userid AND timecreated >= :start AND timecreated < :end
+                AND (latency IS NULL OR latency >= :minlatency)',
+            [
+                'instanceid' => $this->instance->id,
+                'userid' => $userid,
+                'start' => $start,
+                'end' => $end,
+                'minlatency' => self::MIN_ENGAGED_LATENCY,
+            ],
+            '',
+            'id, questionbankentryid, timecreated'
+        );
 
-        return (int)$DB->count_records_sql($sql, [
-            'instanceid' => $this->instance->id,
-            'userid' => $userid,
-            'weekno' => $weekno,
-            'minlatency' => self::MIN_ENGAGED_LATENCY,
-        ]);
+        $seen = array_fill(0, 7, []);
+        foreach ($rows as $row) {
+            $day = min(6, max(0, (int)floor(((int)$row->timecreated - $start) / DAYSECS)));
+            $seen[$day][(int)$row->questionbankentryid] = true;
+        }
+        $rows->close();
+
+        return array_map('count', $seen);
     }
 
     /**
-     * Get this week's record, freezing its target if this is the first visit.
+     * How many days of a week count as study days.
      *
-     * The denominator is frozen once, when the week is first touched. It is
-     * never recomputed during the week, because a denominator that grows as
-     * answered items come due again makes the finish line recede from a learner
-     * who is doing everything asked of them.
+     * A day counts when the learner answered a session's worth of different
+     * questions, or reached a point where nothing more could be offered. The
+     * second half matters: a learner with little due must not be marked down
+     * for the queue being short, only for not turning up.
+     *
+     * @param array $daycounts Seven counts from day_counts().
+     * @param int $clearedmask Bit per day on which nothing more could be offered.
+     * @return int Days that count, zero to seven.
+     */
+    public function count_study_days(array $daycounts, int $clearedmask): int {
+        $needed = max(1, (int)$this->instance->sessionsize);
+        $days = 0;
+        for ($day = 0; $day < 7; $day++) {
+            if (($daycounts[$day] ?? 0) >= $needed || ($clearedmask & (1 << $day))) {
+                $days++;
+            }
+        }
+        return $days;
+    }
+
+    /**
+     * The score a week earned under the rule it was worked under before study days.
+     *
+     * @param \stdClass $week The week record.
+     * @return float Fraction between 0 and 1.
+     */
+    public static function legacy_fraction(\stdClass $week): float {
+        return weeks::score_week((int)$week->snapshottarget, (int)$week->completed);
+    }
+
+    /**
+     * Recompute one week's study days and score from the log and stored flags.
+     *
+     * Idempotent: it derives everything from the review log and the cleared
+     * day flags, so running it twice, or long after the fact, gives the same
+     * answer.
+     *
+     * A week that began before study day grading was switched on keeps the
+     * better of its old and new scores. Learners worked those weeks without
+     * being told days mattered, and a change of rule must not take marks away
+     * retrospectively.
+     *
+     * @param int $userid The learner.
+     * @param int $weekno The week number.
+     * @param int $now Current time.
+     * @param bool $create Whether to create the week record if it does not exist yet.
+     * @return \stdClass|null The updated week record, or null outside the graded calendar.
+     */
+    public function rescore_week(int $userid, int $weekno, int $now, bool $create = true): ?\stdClass {
+        global $DB;
+
+        if (!$this->is_graded_week($weekno)) {
+            return null;
+        }
+
+        if ($create) {
+            $week = $this->ensure_week_record($userid, $weekno, $now);
+        } else {
+            $week = $DB->get_record('rememberme_weeks', [
+                'rememberme' => $this->instance->id,
+                'userid' => $userid,
+                'weekno' => $weekno,
+            ]);
+            if (!$week) {
+                return null;
+            }
+        }
+
+        $base = (int)$week->daysrequired > 0 ? (int)$week->daysrequired : $this->required_study_days();
+        $required = $this->effective_required($base, $weekno);
+        $studied = $this->count_study_days($this->day_counts($userid, $weekno), (int)$week->clearedmask);
+        $fraction = weeks::score_days($required, $studied);
+
+        // Only a record the item count release wrote carries an old score. A
+        // record created since has a legacy target of zero, which the old rule
+        // would read as "nothing was due" and score as a full week.
+        [$weekstart] = $this->get_weeks()->week_bounds($weekno);
+        $switchedat = (int)($this->instance->studydaysfrom ?? 0);
+        if ($switchedat > 0 && $weekstart < $switchedat && (int)$week->snapshottaken < $switchedat) {
+            $fraction = max($fraction, self::legacy_fraction($week));
+        }
+
+        $week->daysrequired = $base;
+        $week->daysstudied = $studied;
+        $week->fraction = $fraction;
+        $week->timemodified = $now;
+        $DB->update_record('rememberme_weeks', (object)[
+            'id' => $week->id,
+            'daysrequired' => $base,
+            'daysstudied' => $studied,
+            'fraction' => $fraction,
+            'timemodified' => $now,
+        ]);
+
+        return $week;
+    }
+
+    /**
+     * Record that nothing more could be offered to the learner right now.
+     *
+     * Called when a session cannot start because the queue is empty: every
+     * review due has been answered and today's new items have been drawn. That
+     * is everything the activity asked of the learner today, so the day counts
+     * however few questions it took.
+     *
+     * @param int $userid The learner.
+     * @param int|null $now Current time, or null for now.
+     */
+    public function mark_day_cleared(int $userid, ?int $now = null): void {
+        global $DB;
+
+        $now = $now ?? time();
+        $weekno = $this->get_weeks()->week_for($now);
+        if (!$this->is_graded_week($weekno)) {
+            return;
+        }
+
+        $week = $this->ensure_week_record($userid, $weekno, $now);
+        $bit = 1 << $this->day_index($weekno, $now);
+        if ((int)$week->clearedmask & $bit) {
+            return;
+        }
+
+        $DB->set_field('rememberme_weeks', 'clearedmask', (int)$week->clearedmask | $bit, ['id' => $week->id]);
+        $this->rescore_week($userid, $weekno, $now);
+        $this->progress_changed($userid);
+    }
+
+    /**
+     * Let the gradebook and completion know the learner's standing moved.
+     *
+     * @param int $userid The learner.
+     */
+    protected function progress_changed(int $userid): void {
+        global $CFG;
+        require_once($CFG->dirroot . '/mod/rememberme/lib.php');
+
+        rememberme_user_progress_changed($this->instance, $userid);
+    }
+
+    /**
+     * The learner's progress toward today counting as a study day.
+     *
+     * @param int $userid The learner.
+     * @param int|null $now Current time, or null for now.
+     * @return array With done, target and counts.
+     */
+    public function today_progress(int $userid, ?int $now = null): array {
+        global $DB;
+
+        $now = $now ?? time();
+        $target = max(1, (int)$this->instance->sessionsize);
+        $weekno = $this->get_weeks()->week_for($now);
+        if (!$this->is_graded_week($weekno)) {
+            return ['done' => 0, 'target' => $target, 'counts' => false];
+        }
+
+        $done = $this->day_counts($userid, $weekno)[$this->day_index($weekno, $now)];
+        $mask = (int)$DB->get_field('rememberme_weeks', 'clearedmask', [
+            'rememberme' => $this->instance->id,
+            'userid' => $userid,
+            'weekno' => $weekno,
+        ]);
+        $cleared = (bool)($mask & (1 << $this->day_index($weekno, $now)));
+
+        return [
+            'done' => $done,
+            'target' => $target,
+            'counts' => $cleared || $done >= $target,
+        ];
+    }
+
+    /**
+     * Get this week's record, creating it if this is the first visit.
+     *
+     * The study days required are frozen on the record when it is created, so
+     * a teacher changing the setting mid week does not move the finish line
+     * under a learner who is already working toward it.
      *
      * @param int $userid The learner.
      * @param int $weekno The week number.
      * @param int $now Current time.
      * @return \stdClass The week record.
      */
-    public function ensure_week_snapshot(int $userid, int $weekno, int $now): \stdClass {
+    public function ensure_week_record(int $userid, int $weekno, int $now): \stdClass {
         global $DB;
 
         $week = $DB->get_record('rememberme_weeks', [
@@ -783,27 +1047,20 @@ class scheduler {
             return $week;
         }
 
-        $weeks = $this->get_weeks();
-        [$weekstart] = $weeks->week_bounds($weekno);
-        $snapshottime = max($weekstart, min($now, $weekstart));
-
-        // Items due at the moment the week began, plus the new items the learner
-        // is permitted to draw during it.
-        $duenow = count($this->due_records($userid, max($weekstart, $now)));
-        $newallowed = (int)$this->instance->newperday * 7;
-        $remainingnew = $this->count_unseen($userid);
-        $target = $duenow + min($newallowed, $remainingnew);
-
         $record = (object)[
             'rememberme' => $this->instance->id,
             'userid' => $userid,
             'weekno' => $weekno,
-            'snapshottarget' => $target,
+            // The item count target this replaced. Left at zero on new rows.
+            'snapshottarget' => 0,
             'snapshottaken' => $now,
             'completed' => 0,
             'fraction' => 0.0,
             'graceapplied' => 0.0,
-            'suspended' => $weeks->is_week_suspended($weekno) ? 1 : 0,
+            'suspended' => $this->get_weeks()->is_week_suspended($weekno) ? 1 : 0,
+            'daysrequired' => $this->required_study_days(),
+            'daysstudied' => 0,
+            'clearedmask' => 0,
             'timemodified' => $now,
         ];
         $record->id = $DB->insert_record('rememberme_weeks', $record);
@@ -1062,7 +1319,14 @@ class scheduler {
                 // A week that has not happened yet is not a shortfall.
                 continue;
             }
-            $fractions[$weekno] = isset($records[$weekno]) ? (float)$records[$weekno]->fraction : 0.0;
+            $fraction = isset($records[$weekno]) ? (float)$records[$weekno]->fraction : 0.0;
+            if ($weekno == $currentweek && $fraction < 1.0) {
+                // Nor is the week in progress, until it has been earned in
+                // full: otherwise every grade dips on the first day of every
+                // week, for learners who have done nothing wrong.
+                continue;
+            }
+            $fractions[$weekno] = $fraction;
         }
 
         $balance = grace::cap_balance(
@@ -1086,19 +1350,77 @@ class scheduler {
     public function earned_grace(int $userid): float {
         global $DB;
 
-        $answered = $DB->count_records('rememberme_review_log', [
-            'rememberme' => $this->instance->id,
-            'userid' => $userid,
-            'insuspension' => 1,
-        ]);
-
         $fromwork = grace::earned_from_work(
-            $answered,
+            $this->count_break_study($userid),
             (int)$this->instance->sessionsize,
             (float)$this->instance->graceearnrate
         );
 
         return $fromwork + $this->ontime_grace($userid);
+    }
+
+    /**
+     * How much study the learner has done during breaks, for earning grace.
+     *
+     * Study counts as done during a break if it was inside a suspension window,
+     * or anywhere in a week that is not graded because it is mostly suspended:
+     * a learner who comes back on the open days of a break week is doing
+     * exactly the voluntary work grace exists to reward, and without this it
+     * earned nothing at all, since the week itself is out of the grade.
+     *
+     * It counts different questions answered properly on each day, the same
+     * measure as a study day, so repeating one question or tapping through
+     * earns nothing. Answers given before study day grading was switched on are
+     * counted the way they were then, every answer inside a window, so no
+     * learner's grace shrinks because the rule changed.
+     *
+     * @param int $userid The learner.
+     * @return int Answers that earn grace.
+     */
+    public function count_break_study(int $userid): int {
+        global $DB;
+
+        $switchedat = (int)($this->instance->studydaysfrom ?? 0);
+        $count = 0;
+        if ($switchedat > 0) {
+            $count += $DB->count_records_select(
+                'rememberme_review_log',
+                'rememberme = :instanceid AND userid = :userid AND insuspension = 1 AND timecreated < :switchedat',
+                ['instanceid' => $this->instance->id, 'userid' => $userid, 'switchedat' => $switchedat]
+            );
+        }
+
+        $rows = $DB->get_recordset_select(
+            'rememberme_review_log',
+            'rememberme = :instanceid AND userid = :userid AND timecreated >= :switchedat
+                AND (latency IS NULL OR latency >= :minlatency)',
+            [
+                'instanceid' => $this->instance->id,
+                'userid' => $userid,
+                'switchedat' => $switchedat,
+                'minlatency' => self::MIN_ENGAGED_LATENCY,
+            ],
+            '',
+            'id, questionbankentryid, timecreated'
+        );
+
+        $weeks = $this->get_weeks();
+        $clock = $this->get_clock();
+        $breakweeks = [];
+        $seen = [];
+        foreach ($rows as $row) {
+            $time = (int)$row->timecreated;
+            $weekno = $weeks->week_for($time);
+            $breakweeks[$weekno] ??= $this->is_graded_week($weekno) && $weeks->is_week_suspended($weekno);
+            if (!$breakweeks[$weekno] && !$clock->is_suspended_at($time)) {
+                continue;
+            }
+            [$daystart] = $this->day_bounds($time);
+            $seen[$daystart . ':' . $row->questionbankentryid] = true;
+        }
+        $rows->close();
+
+        return $count + count($seen);
     }
 
     /**
