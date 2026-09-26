@@ -5,7 +5,7 @@ All notable changes to this plugin are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-09-26
 
 ### Added
 
@@ -36,8 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The grade is a share of the whole term: every graded week is an equal part
   of it from the first day, so it builds up week by week, and the week in
   progress counts for what is already earned in it. It used to be an average of
-  the weeks so far, which gave anyone who had answered a question in week one
-  100%, and a learner who had finished two weeks the same in week three.
+  the weeks so far, which overstated every learner's standing early in the term.
 - The per day cap on new items resets at the same time of day as a study day.
 - "Week one begins" and "Active weeks" are replaced by a start of term and an
   end of term, both dates. Suspension windows must fall within the term.
