@@ -35,11 +35,13 @@
 require(__DIR__ . '/../../config.php');
 require_once($CFG->dirroot . '/mod/rememberme/lib.php');
 
+use core\output\single_button;
 use core\output\tabobject;
 use mod_rememberme\output\report_renderer_helper;
 
 $id = required_param('id', PARAM_INT);
 $mode = optional_param('mode', report_renderer_helper::MODE_DIFFICULTY, PARAM_ALPHA);
+$action = optional_param('action', '', PARAM_ALPHA);
 
 [$course, $cm] = get_course_and_cm_from_cmid($id, 'rememberme');
 require_login($course, false, $cm);
@@ -63,6 +65,23 @@ $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_activity_record($instance);
 $PAGE->activityheader->set_attrs(['hidecompletion' => true, 'description' => '']);
 
+// Rescoring every learner's weeks and pushing their grades. Scores and grades
+// already follow every answer, every change to the term and a daily task, so
+// this is for a teacher who wants them brought up to date now: after changing
+// study days, say, or when a grade looks wrong. A write, so it takes a POST with
+// a valid sesskey and its own capability, checked here where it happens.
+if ($action === 'recalculate' && data_submitted() && confirm_sesskey()) {
+    require_capability('mod/rememberme:recalculategrades', $context);
+    core_php_time_limit::raise();
+    [$rescored, $learners] = \mod_rememberme\task\recalculate_weeks::recalculate($instance);
+    redirect(
+        $url,
+        get_string('recalculategradesdone', 'rememberme', ['weeks' => $rescored, 'learners' => $learners]),
+        null,
+        \core\output\notification::NOTIFY_SUCCESS
+    );
+}
+
 // Group mode is honoured so that a teacher confined to separate groups does not
 // see the retention and completion of learners they are not responsible for.
 $groupid = 0;
@@ -73,6 +92,17 @@ if ($groupmode) {
 
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('reports', 'rememberme'));
+
+if (has_capability('mod/rememberme:recalculategrades', $context)) {
+    $button = new single_button(
+        new moodle_url($url, ['action' => 'recalculate']),
+        get_string('recalculategrades', 'rememberme'),
+        'post',
+        single_button::BUTTON_SECONDARY
+    );
+    $button->add_confirm_action(get_string('recalculategradesconfirm', 'rememberme'));
+    echo html_writer::div($OUTPUT->render($button), 'mb-3');
+}
 
 if ($groupmode) {
     echo html_writer::div(
@@ -106,5 +136,6 @@ switch ($mode) {
 }
 
 echo $OUTPUT->render_from_template(report_renderer_helper::template_for($mode), $templatecontext);
+$PAGE->requires->js_call_amd('mod_rememberme/sortable_table', 'init');
 
 echo $OUTPUT->footer();

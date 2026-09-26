@@ -46,8 +46,7 @@ class recalculate_weeks extends \core\task\adhoc_task {
      * @return void
      */
     public function execute() {
-        global $CFG, $DB;
-        require_once($CFG->dirroot . '/mod/rememberme/lib.php');
+        global $DB;
 
         $instanceid = (int)($this->get_custom_data()->instanceid ?? 0);
         $instance = $DB->get_record('rememberme', ['id' => $instanceid]);
@@ -56,16 +55,33 @@ class recalculate_weeks extends \core\task\adhoc_task {
             return;
         }
 
-        $now = time();
+        [$rescored, $learners] = self::recalculate($instance);
+        mtrace("  Rescored {$rescored} week(s) for {$learners} learner(s) in activity {$instanceid}.");
+    }
+
+    /**
+     * Rescore every learner's weeks in an activity and push their grades.
+     *
+     * Shared by this task and the teacher's recalculate button, so the two
+     * can never disagree about what a recalculation is.
+     *
+     * @param \stdClass $instance The activity instance.
+     * @param int|null $now Current time, or null for now.
+     * @return array Two element list: weeks rescored, and learners covered.
+     */
+    public static function recalculate(\stdClass $instance, ?int $now = null): array {
+        global $CFG, $DB;
+        require_once($CFG->dirroot . '/mod/rememberme/lib.php');
+
+        $now = $now ?? time();
         $scheduler = new \mod_rememberme\local\scheduler($instance);
-        $weeks = $scheduler->get_weeks();
-        $lastweek = min((int)$instance->activeweeks, $weeks->week_for($now));
+        $lastweek = min((int)$instance->activeweeks, $scheduler->get_weeks()->week_for($now));
 
         $userids = $DB->get_fieldset_sql(
             'SELECT userid FROM {rememberme_weeks} WHERE rememberme = :a
               UNION
              SELECT userid FROM {rememberme_review_log} WHERE rememberme = :b',
-            ['a' => $instanceid, 'b' => $instanceid]
+            ['a' => $instance->id, 'b' => $instance->id]
         );
 
         $rescored = 0;
@@ -82,6 +98,6 @@ class recalculate_weeks extends \core\task\adhoc_task {
         }
 
         rememberme_update_grades($instance);
-        mtrace("  Rescored {$rescored} week(s) for " . count($userids) . " learner(s) in activity {$instanceid}.");
+        return [$rescored, count($userids)];
     }
 }

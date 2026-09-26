@@ -211,6 +211,11 @@ closes the tab after three questions keeps the effect of those three.
 - **Band progression**, flagging learners advanced by the backstop.
 - **Weekly completion** matrix, including grace consumed.
 
+Every report column sorts when its heading is clicked. Editing teachers and
+managers also get a **Recalculate grades** button, which rescores every
+learner's weeks and updates the gradebook at once; grades otherwise follow each
+answer, each change to the term or breaks, and a daily task.
+
 ## Mobile
 
 The Moodle app shows the study session itself, not a summary of it. Questions
@@ -236,9 +241,15 @@ The schedule and the review log record what an individual learner knew and when.
 Both are declared, exported and deleted through the privacy API, along with
 weekly progress, band progress and session records.
 
+## Languages
+
+English and Japanese (日本語). The Japanese strings are in `lang/ja/`; they are
+used when the site has the Japanese language pack installed and the user has
+chosen Japanese.
+
 ## Status
 
-Version 0.1.1, alpha. The model constants are the published FSRS-5 defaults and
+Version 0.2.0, alpha. The model constants are the published FSRS-5 defaults and
 the Mode B thresholds are reasoned estimates rather than validated ones — the
 review log exists precisely so they can be refitted against real cohort data.
 

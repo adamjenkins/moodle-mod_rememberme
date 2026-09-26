@@ -31,6 +31,9 @@
     The learner value arrives already escaped with s() and is rendered
     unescaped on purpose. Every other value is escaped by the template engine.
 
+    The matrix is sortable by any column (mod_rememberme/sortable_table); each
+    cell's data-sort holds the raw value behind its formatted text.
+
     Context variables required for this template:
     * hasrows Boolean Whether there is both a participant and a week to show
     * columns Array of weeks, each with:
@@ -40,10 +43,12 @@
     * rows Array of learners, each with:
         * learner String The learner's full name, already escaped
         * gracetotal String Total grace credit spent across all weeks
+        * gracetotalraw Number The same, unformatted, for sorting
         * cells Array in column order, each with:
             * hasrecord Boolean Whether the learner has a row for that week
             * suspended Boolean Whether that week does not count
             * fraction String The share of the week's study days met
+            * fractionraw Number The same for sorting: 0 for a missed week, an empty string for a suspended one
             * completed Number Study days that counted that week
             * target Number Study days that week needed
             * hasgrace Boolean Whether grace was spent on that week
@@ -60,11 +65,13 @@
             {
                 "learner": "Aisha Karim",
                 "gracetotal": "0.33",
+                "gracetotalraw": 0.33,
                 "cells": [
                     {
                         "hasrecord": true,
                         "suspended": false,
                         "fraction": "0.67",
+                        "fractionraw": 0.67,
                         "completed": 2,
                         "target": 3,
                         "hasgrace": true,
@@ -74,6 +81,7 @@
                         "hasrecord": false,
                         "suspended": true,
                         "fraction": "",
+                        "fractionraw": "",
                         "completed": 0,
                         "target": 0,
                         "hasgrace": false,
@@ -89,7 +97,7 @@
 
     {{#hasrows}}
     <div class="table-responsive">
-        <table class="table table-striped generaltable mod_rememberme-weekmatrix">
+        <table class="table table-striped generaltable mod_rememberme-weekmatrix" data-sortable="1">
             <caption>{{#str}}reportweekscaption, mod_rememberme{{/str}}</caption>
             <thead>
                 <tr>
@@ -110,7 +118,7 @@
                 <tr>
                     <th scope="row" class="font-weight-normal">{{{learner}}}</th>
                     {{#cells}}
-                    <td>
+                    <td data-sort="{{fractionraw}}">
                         {{#suspended}}
                             <span class="small text-muted">{{#str}}weeksuspended, mod_rememberme{{/str}}</span>
                         {{/suspended}}
@@ -129,7 +137,7 @@
                         {{/suspended}}
                     </td>
                     {{/cells}}
-                    <td>{{gracetotal}}</td>
+                    <td data-sort="{{gracetotalraw}}">{{gracetotal}}</td>
                 </tr>
                 {{/rows}}
             </tbody>

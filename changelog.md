@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Every column of every report can be sorted, by clicking its heading. Numbers
+  and dates sort by value rather than by their wording, and the heading tells a
+  screen reader which way the column is sorted.
+- A "Recalculate grades" button on the reports page rescores every learner's
+  weeks and updates the gradebook at once. It needs the new capability
+  mod/rememberme:recalculategrades, given to editing teachers and managers.
+- A Japanese language pack.
+
 ### Changed
 
 - Weeks are graded on study days: how many different days the learner studied,

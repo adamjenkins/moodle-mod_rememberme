@@ -28,6 +28,9 @@
     is filtered, escaped HTML and is rendered unescaped on purpose. Every other
     value is escaped by the template engine.
 
+    The table is sortable by any column (mod_rememberme/sortable_table); each
+    cell's data-sort holds the raw value behind its formatted text.
+
     Context variables required for this template:
     * hasrows Boolean Whether there is any data at all
     * hasflagged Boolean Whether any question crossed the flag threshold
@@ -38,8 +41,11 @@
         * questionname String The question name, already format_string()ed
         * learners Number How many learners have memory state for this item
         * meandifficulty String Mean difficulty across those learners
+        * meandifficultyraw Number The same, unformatted, for sorting
         * meanstability String Mean stability in days
+        * meanstabilityraw Number The same, unformatted, for sorting
         * meanlapses String Mean lapses per learner
+        * meanlapsesraw Number The same, unformatted, for sorting
         * reps Number Total successful recalls across the cohort
         * flagged Boolean Whether this row is worth a teacher's attention
 
@@ -55,8 +61,11 @@
                 "questionname": "Which of these is a noun?",
                 "learners": 24,
                 "meandifficulty": "8.41",
+                "meandifficultyraw": 8.41,
                 "meanstability": "1.90",
+                "meanstabilityraw": 1.9,
                 "meanlapses": "3.10",
+                "meanlapsesraw": 3.1,
                 "reps": 41,
                 "flagged": true
             },
@@ -64,8 +73,11 @@
                 "questionname": "Translate: the red house",
                 "learners": 22,
                 "meandifficulty": "4.02",
+                "meandifficultyraw": 4.02,
                 "meanstability": "17.30",
+                "meanstabilityraw": 17.3,
                 "meanlapses": "0.40",
+                "meanlapsesraw": 0.4,
                 "reps": 96,
                 "flagged": false
             }
@@ -83,12 +95,12 @@
 
     {{#hasrows}}
     <div class="table-responsive">
-        <table class="table table-striped generaltable">
+        <table class="table table-striped generaltable" data-sortable="1">
             <caption>{{#str}}reportdifficultycaption, mod_rememberme{{/str}}</caption>
             <thead>
                 <tr>
                     <th scope="col">{{#str}}question, mod_rememberme{{/str}}</th>
-                    <th scope="col">{{#str}}meandifficulty, mod_rememberme{{/str}}</th>
+                    <th scope="col" aria-sort="descending">{{#str}}meandifficulty, mod_rememberme{{/str}}</th>
                     <th scope="col">{{#str}}learners, mod_rememberme{{/str}}</th>
                     <th scope="col">{{#str}}meanlapses, mod_rememberme{{/str}}</th>
                     <th scope="col">{{#str}}meanstability, mod_rememberme{{/str}}</th>
@@ -104,11 +116,11 @@
                             <span class="badge badge-warning bg-warning text-dark ms-1">{{#str}}flagreview, mod_rememberme{{/str}}</span>
                         {{/flagged}}
                     </th>
-                    <td>{{meandifficulty}}</td>
-                    <td>{{learners}}</td>
-                    <td>{{meanlapses}}</td>
-                    <td>{{meanstability}}</td>
-                    <td>{{reps}}</td>
+                    <td data-sort="{{meandifficultyraw}}">{{meandifficulty}}</td>
+                    <td data-sort="{{learners}}">{{learners}}</td>
+                    <td data-sort="{{meanlapsesraw}}">{{meanlapses}}</td>
+                    <td data-sort="{{meanstabilityraw}}">{{meanstability}}</td>
+                    <td data-sort="{{reps}}">{{reps}}</td>
                 </tr>
                 {{/rows}}
             </tbody>

@@ -29,6 +29,9 @@
     The learner value arrives already escaped with s() and is rendered
     unescaped on purpose. Every other value is escaped by the template engine.
 
+    The table is sortable by any column (mod_rememberme/sortable_table); each
+    cell's data-sort holds the raw value behind its formatted text.
+
     Context variables required for this template:
     * hasrows Boolean Whether there are any participants to list
     * bandcount Number How many bands this activity has
@@ -41,7 +44,9 @@
         * reason String The localised label for how the band was reached
         * isbackstop Boolean Whether that reason was the backstop
         * bandsince String Formatted date the learner entered this band
+        * bandsinceraw Number The same as a timestamp for sorting, or an empty string
         * firstsession String Formatted date of the learner's first session
+        * firstsessionraw Number The same as a timestamp for sorting, or an empty string
 
     Example context (json):
     {
@@ -57,7 +62,9 @@
                 "reason": "Band established",
                 "isbackstop": false,
                 "bandsince": "18/08/26",
-                "firstsession": "02/06/26"
+                "bandsinceraw": 1787011200,
+                "firstsession": "02/06/26",
+                "firstsessionraw": 1780358400
             },
             {
                 "learner": "Tom Boyd",
@@ -66,7 +73,9 @@
                 "reason": "Backstop",
                 "isbackstop": true,
                 "bandsince": "20/08/26",
-                "firstsession": "05/06/26"
+                "bandsinceraw": 1787184000,
+                "firstsession": "05/06/26",
+                "firstsessionraw": 1780617600
             }
         ]
     }
@@ -80,7 +89,7 @@
 
     {{#hasrows}}
     <div class="table-responsive">
-        <table class="table table-striped generaltable">
+        <table class="table table-striped generaltable" data-sortable="1">
             <caption>{{#str}}reportbandscaption, mod_rememberme{{/str}}</caption>
             <thead>
                 <tr>
@@ -95,7 +104,7 @@
                 {{#rows}}
                 <tr>
                     <th scope="row" class="font-weight-normal">{{{learner}}}</th>
-                    <td>
+                    <td data-sort="{{bandlevel}}">
                         {{#started}}{{bandlevel}} / {{bandcount}}{{/started}}
                         {{^started}}{{#str}}notstarted, mod_rememberme{{/str}}{{/started}}
                     </td>
@@ -105,8 +114,8 @@
                             <span class="badge badge-warning bg-warning text-dark ms-1">{{#str}}flagreview, mod_rememberme{{/str}}</span>
                         {{/isbackstop}}
                     </td>
-                    <td>{{bandsince}}</td>
-                    <td>{{firstsession}}</td>
+                    <td data-sort="{{bandsinceraw}}">{{bandsince}}</td>
+                    <td data-sort="{{firstsessionraw}}">{{firstsession}}</td>
                 </tr>
                 {{/rows}}
             </tbody>

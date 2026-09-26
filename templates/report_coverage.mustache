@@ -33,6 +33,9 @@
     The learner value arrives already escaped with s() and is rendered
     unescaped on purpose. Every other value is escaped by the template engine.
 
+    Both tables are sortable by any column (mod_rememberme/sortable_table);
+    each cell's data-sort holds the raw value behind its formatted text.
+
     Context variables required for this template:
     * hasrows Boolean Whether there are any participants to list
     * pooltotal Number How many questions the pool holds
@@ -44,13 +47,14 @@
         * established Number Items at or above the stability floor
         * poolestablished String That as a whole number percentage of the pool
         * meanstability String Mean stability in days across items seen
+        * meanstabilityraw Number The same, unformatted, for sorting
         * lapses Number Total lapses
         * started Boolean Whether the learner has answered anything
     * forecast Object with:
         * hasload Boolean Whether anything is due or overdue
         * overdue Number Items already overdue across the cohort
         * overduewidth Number Bar width for the overdue count, 0 to 100
-        * days Array of days, each with label String, count Number, width Number
+        * days Array of days, each with label String, offset Number (days from today, for sorting), count Number, width Number
 
     Example context (json):
     {
@@ -65,6 +69,7 @@
                 "established": 96,
                 "poolestablished": "53",
                 "meanstability": "21.40",
+                "meanstabilityraw": 21.4,
                 "lapses": 18,
                 "started": true
             },
@@ -75,6 +80,7 @@
                 "established": 0,
                 "poolestablished": "0",
                 "meanstability": "0.00",
+                "meanstabilityraw": 0,
                 "lapses": 0,
                 "started": false
             }
@@ -84,8 +90,8 @@
             "overdue": 12,
             "overduewidth": 40,
             "days": [
-                {"label": "01 September", "count": 30, "width": 100},
-                {"label": "02 September", "count": 9, "width": 30}
+                {"label": "01 September", "offset": 0, "count": 30, "width": 100},
+                {"label": "02 September", "offset": 1, "count": 9, "width": 30}
             ]
         }
     }
@@ -98,7 +104,7 @@
 
     {{#hasrows}}
     <div class="table-responsive">
-        <table class="table table-striped generaltable">
+        <table class="table table-striped generaltable" data-sortable="1">
             <caption>{{#str}}reportcoveragecaption, mod_rememberme{{/str}}</caption>
             <thead>
                 <tr>
@@ -113,16 +119,16 @@
                 {{#rows}}
                 <tr>
                     <th scope="row" class="font-weight-normal">{{{learner}}}</th>
-                    <td>
+                    <td data-sort="{{seen}}">
                         {{#started}}{{seen}} ({{poolseen}}%){{/started}}
                         {{^started}}{{#str}}notstarted, mod_rememberme{{/str}}{{/started}}
                     </td>
-                    <td>
+                    <td data-sort="{{established}}">
                         {{#started}}{{established}} ({{poolestablished}}%){{/started}}
                         {{^started}}{{#str}}notstarted, mod_rememberme{{/str}}{{/started}}
                     </td>
-                    <td>{{meanstability}}</td>
-                    <td>{{lapses}}</td>
+                    <td data-sort="{{meanstabilityraw}}">{{meanstability}}</td>
+                    <td data-sort="{{lapses}}">{{lapses}}</td>
                 </tr>
                 {{/rows}}
             </tbody>
@@ -139,20 +145,20 @@
     {{#forecast}}
         {{#hasload}}
         <div class="table-responsive">
-            <table class="table generaltable mod_rememberme-forecast">
+            <table class="table generaltable mod_rememberme-forecast" data-sortable="1">
                 <caption>{{#str}}forecastcaption, mod_rememberme{{/str}}</caption>
                 <thead>
                     <tr>
-                        <th scope="col">{{#str}}day, mod_rememberme{{/str}}</th>
+                        <th scope="col" aria-sort="ascending">{{#str}}day, mod_rememberme{{/str}}</th>
                         <th scope="col">{{#str}}itemsdue, mod_rememberme{{/str}}</th>
                         <th scope="col">{{#str}}relativeload, mod_rememberme{{/str}}</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
-                        <th scope="row" class="font-weight-normal">{{#str}}overduenow, mod_rememberme{{/str}}</th>
-                        <td>{{overdue}}</td>
-                        <td class="w-50">
+                        <th scope="row" class="font-weight-normal" data-sort="-1">{{#str}}overduenow, mod_rememberme{{/str}}</th>
+                        <td data-sort="{{overdue}}">{{overdue}}</td>
+                        <td class="w-50" data-sort="{{overdue}}">
                             <div class="progress" aria-hidden="true">
                                 <div class="progress-bar bg-secondary" style="width: {{overduewidth}}%"></div>
                             </div>
@@ -160,9 +166,9 @@
                     </tr>
                     {{#days}}
                     <tr>
-                        <th scope="row" class="font-weight-normal">{{label}}</th>
-                        <td>{{count}}</td>
-                        <td class="w-50">
+                        <th scope="row" class="font-weight-normal" data-sort="{{offset}}">{{label}}</th>
+                        <td data-sort="{{count}}">{{count}}</td>
+                        <td class="w-50" data-sort="{{count}}">
                             <div class="progress" aria-hidden="true">
                                 <div class="progress-bar" style="width: {{width}}%"></div>
                             </div>

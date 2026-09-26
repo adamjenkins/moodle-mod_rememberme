@@ -68,4 +68,16 @@ $capabilities = [
             'manager' => CAP_ALLOW,
         ],
     ],
+
+    // Rescoring rewrites every learner's weekly scores and gradebook grade, so
+    // it is a write, held by those who may edit the activity, not by everyone
+    // who can read the reports.
+    'mod/rememberme:recalculategrades' => [
+        'captype' => 'write',
+        'contextlevel' => CONTEXT_MODULE,
+        'archetypes' => [
+            'editingteacher' => CAP_ALLOW,
+            'manager' => CAP_ALLOW,
+        ],
+    ],
 ];

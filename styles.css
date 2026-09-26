@@ -187,3 +187,26 @@
         transform: none;
     }
 }
+
+/* Sortable report columns. The arrow is drawn from the heading's aria-sort, the
+   same attribute a screen reader announces, so the two cannot disagree. An
+   unsorted column shows a faint two-way arrow, so it reads as sortable. */
+.path-mod-rememberme .mod_rememberme-sortbutton {
+    text-decoration: none;
+    white-space: normal;
+}
+
+.path-mod-rememberme .mod_rememberme-sortindicator::after {
+    content: "\2195";
+    opacity: 0.4;
+}
+
+.path-mod-rememberme th[aria-sort="ascending"] .mod_rememberme-sortindicator::after {
+    content: "\25B2";
+    opacity: 1;
+}
+
+.path-mod-rememberme th[aria-sort="descending"] .mod_rememberme-sortindicator::after {
+    content: "\25BC";
+    opacity: 1;
+}

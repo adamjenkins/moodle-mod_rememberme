@@ -25,7 +25,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'mod_rememberme';
-$plugin->version = 2026090111;
+$plugin->version = 2026090112;
 $plugin->release = '0.2.0';
 $plugin->maturity = MATURITY_ALPHA;
 // Moodle 5.2. The question bank APIs this plugin depends on, in particular

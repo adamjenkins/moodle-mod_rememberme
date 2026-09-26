@@ -258,7 +258,9 @@ class report_renderer_helper {
                 'meandifficulty' => format_float($meandifficulty, 2),
                 'meandifficultyraw' => $meandifficulty,
                 'meanlapses' => format_float((float)$aggregate->meanlapses, 2),
+                'meanlapsesraw' => (float)$aggregate->meanlapses,
                 'meanstability' => format_float((float)$aggregate->meanstability, 2),
+                'meanstabilityraw' => (float)$aggregate->meanstability,
                 'reps' => (int)$aggregate->totalreps,
                 'flagged' => $meandifficulty >= self::DIFFICULTY_FLAG && $learners >= self::FLAG_MIN_LEARNERS,
             ];
@@ -268,9 +270,7 @@ class report_renderer_helper {
         usort($rows, function (array $a, array $b): int {
             return $b['meandifficultyraw'] <=> $a['meandifficultyraw'];
         });
-        foreach ($rows as $index => $unused) {
-            unset($rows[$index]['meandifficultyraw']);
-        }
+        // The raw value stays on each row: the table sorts by it in the browser.
 
         $flagged = 0;
         foreach ($rows as $row) {
@@ -327,6 +327,7 @@ class report_renderer_helper {
                 'established' => $established,
                 'poolestablished' => $pooltotal > 0 ? format_float(100.0 * $established / $pooltotal, 0) : '0',
                 'meanstability' => $aggregate ? format_float((float)$aggregate->meanstability, 2) : '0.00',
+                'meanstabilityraw' => $aggregate ? (float)$aggregate->meanstability : 0.0,
                 'lapses' => $aggregate ? (int)$aggregate->lapses : 0,
                 'started' => $seen > 0,
             ];
@@ -393,6 +394,7 @@ class report_renderer_helper {
         foreach ($counts as $offset => $count) {
             $days[] = [
                 'label' => s(userdate($daystart + $offset * DAYSECS, get_string('strftimedateshort', 'langconfig'))),
+                'offset' => $offset,
                 'count' => $count,
                 'width' => (int)round(100 * $count / $max),
             ];
@@ -444,9 +446,11 @@ class report_renderer_helper {
                 'bandsince' => $state && $state->bandsince
                     ? s(userdate((int)$state->bandsince, $dateformat))
                     : '',
+                'bandsinceraw' => $state && $state->bandsince ? (int)$state->bandsince : '',
                 'firstsession' => $state && $state->firstsession
                     ? s(userdate((int)$state->firstsession, $dateformat))
                     : '',
+                'firstsessionraw' => $state && $state->firstsession ? (int)$state->firstsession : '',
             ];
         }
 
@@ -523,6 +527,10 @@ class report_renderer_helper {
                     'hasrecord' => (bool)$record,
                     'suspended' => $suspended,
                     'fraction' => $record ? format_float((float)$record->fraction, 2) : '',
+                    // What a sort orders by: a graded week with no record was
+                    // missed, so it ranks as nothing achieved; a suspended
+                    // week has no score and sorts after every week that does.
+                    'fractionraw' => $suspended ? '' : ($record ? (float)$record->fraction : 0.0),
                     'completed' => $record ? (int)$record->daysstudied : 0,
                     'target' => $record ? $this->scheduler->effective_required((int)$record->daysrequired, $week) : 0,
                     'hasgrace' => $grace > 0,
@@ -533,6 +541,7 @@ class report_renderer_helper {
                 'learner' => $this->learner_name($user),
                 'cells' => $cells,
                 'gracetotal' => format_float($gracetotal, 2),
+                'gracetotalraw' => $gracetotal,
             ];
         }
 
