@@ -74,17 +74,24 @@ class mobile {
         // schedule records of their own, exactly as on the web.
         if (!has_capability('mod/rememberme:attempt', $context)) {
             $data['hasquestion'] = false;
-            $data['message'] = get_string('nothingduedesc', 'rememberme');
+            $data['message'] = get_string('noattemptdesc', 'rememberme');
+            return self::view($data + self::progress_data($scheduler, (int)$USER->id), []);
+        }
+
+        // As on the page: no questions configured is not an empty queue.
+        if ($scheduler->get_pool()->get_band_count() === 0) {
+            $data['hasquestion'] = false;
+            $data['message'] = get_string('errornoquestions', 'rememberme');
             return self::view($data + self::progress_data($scheduler, (int)$USER->id), []);
         }
 
         $session = new session($instance, $context);
         if (!$session->load_or_start((int)$USER->id)) {
-            // Nothing could be offered at all, so today counts. Recorded
-            // before the figures below are read, so they already show it.
-            $scheduler->mark_day_cleared((int)$USER->id);
+            // Recorded before the figures below are read, so they already
+            // show a day that counts.
+            $outcome = $scheduler->mark_day_cleared((int)$USER->id);
             $data['hasquestion'] = false;
-            $data['message'] = get_string('nothingduedesc', 'rememberme');
+            $data['message'] = \mod_rememberme\external\helper::empty_message($outcome);
             return self::view($data + self::progress_data($scheduler, (int)$USER->id), []);
         }
 
@@ -92,7 +99,7 @@ class mobile {
         if ($slot === null) {
             $session->finish();
             $data['hasquestion'] = false;
-            $data['message'] = get_string('nothingduedesc', 'rememberme');
+            $data['message'] = get_string('nothingdueplaindesc', 'rememberme');
             return self::view($data + self::progress_data($scheduler, (int)$USER->id), []);
         }
         $data += self::progress_data($scheduler, (int)$USER->id);

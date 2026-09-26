@@ -38,6 +38,12 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class restore_rememberme_activity_structure_step extends restore_questions_activity_structure_step {
+    /** @var bool Whether the backup was made before study day grading existed. */
+    protected bool $legacybackup = false;
+
+    /** @var int The backup's own studydaysfrom, before any date offset. */
+    protected int $rawstudydaysfrom = 0;
+
     /**
      * The session record currently being restored, held until its usage id is known.
      *
@@ -145,18 +151,34 @@ class restore_rememberme_activity_structure_step extends restore_questions_activ
             $data->termend = $this->apply_date_offset($data->termend);
         }
         require_once($CFG->dirroot . '/mod/rememberme/lib.php');
+        // The length asked for, from the end date if there is one and the week
+        // count otherwise, so that shortening either kind of backup is logged.
+        $weeksasked = !empty($data->termend) && (int)$data->termend > (int)$data->coursestart
+            ? (int)ceil(((int)$data->termend - (int)$data->coursestart) / WEEKSECS)
+            : (int)($data->activeweeks ?? 0);
         rememberme_apply_term($data);
+        if ($weeksasked > REMEMBERME_MAX_TERM_WEEKS) {
+            $this->log('rememberme: term of ' . $weeksasked . ' weeks shortened to ' .
+                REMEMBERME_MAX_TERM_WEEKS . '.', backup::LOG_WARNING);
+        }
 
         // A backup made before study day grading carries no study day fields.
         // Its weeks were worked under the item count rule, so they get the same
         // protection an upgraded activity gives them: the switch happens now,
         // and no week that began earlier scores lower than it did.
-        if (!isset($data->studydays)) {
+        $this->legacybackup = !isset($data->studydays);
+        $this->rawstudydaysfrom = (int)($data->studydaysfrom ?? 0);
+        if ($this->legacybackup) {
             $data->studydaysfrom = time();
         } else if (!empty($data->studydaysfrom)) {
             $data->studydaysfrom = $this->apply_date_offset($data->studydaysfrom);
         }
         $data->studydays = min(7, max(1, (int)($data->studydays ?? 3)));
+
+        // The form requires at least one question a session and no negative
+        // allowance. Either outside that makes the activity offer nothing.
+        $data->sessionsize = max(1, (int)($data->sessionsize ?? 20));
+        $data->newperday = max(0, (int)($data->newperday ?? 10));
 
         $newitemid = $DB->insert_record('rememberme', $data);
 
@@ -271,6 +293,11 @@ class restore_rememberme_activity_structure_step extends restore_questions_activ
         // stability), so they must be offset together or not at all.
         $data->lastreviewed = $this->apply_date_offset($data->lastreviewed);
         $data->duedate = $this->apply_date_offset($data->duedate);
+        // The learning step is a moment too, and takes precedence over duedate
+        // in is_due(), so left behind it holds an item back or lets it through early.
+        if (!empty($data->learningdue)) {
+            $data->learningdue = $this->apply_date_offset($data->learningdue);
+        }
 
         // The lifecycle state is an enum in everything but the column type, and it
         // steers later scheduling decisions. A value from outside the set could only
@@ -307,6 +334,11 @@ class restore_rememberme_activity_structure_step extends restore_questions_activ
         // so it stays correct. The timecreated field is offset for the same reason
         // lastreviewed is.
         $data->timecreated = $this->apply_date_offset($data->timecreated);
+        // When the answer was due moves with it, or every restored answer into a
+        // later course looks late and the learner loses their punctuality grace.
+        if (!empty($data->wasdue)) {
+            $data->wasdue = $this->apply_date_offset($data->wasdue);
+        }
 
         $DB->insert_record('rememberme_review_log', $data);
     }
@@ -362,6 +394,19 @@ class restore_rememberme_activity_structure_step extends restore_questions_activ
         $data->userid = $userid;
 
         // The weekno field is an offset from coursestart and needs no date arithmetic.
+        // The record was written under the item count rule if the backup
+        // predates study days, or if the backup says so. A backup from the
+        // first study day build carries study days but no flag; for that one
+        // the flag is worked out the way the upgrade works it out, from the
+        // backup's own dates, before either is moved.
+        if ($this->legacybackup) {
+            $data->legacy = 1;
+        } else if (!isset($data->legacy)) {
+            $data->legacy = ($this->rawstudydaysfrom > 0 && (int)$data->snapshottaken < $this->rawstudydaysfrom) ? 1 : 0;
+        } else {
+            $data->legacy = empty($data->legacy) ? 0 : 1;
+        }
+        $data->snapshottaken = $this->apply_date_offset($data->snapshottaken);
         // The day flags are a seven bit field; anything else in it is not ours.
         $data->clearedmask = ((int)($data->clearedmask ?? 0)) & 0x7f;
         $data->daysrequired = min(7, max(0, (int)($data->daysrequired ?? 0)));
@@ -455,6 +500,10 @@ class restore_rememberme_activity_structure_step extends restore_questions_activ
         $data->questionbankentryid = $this->map_question_bank_entry_id($data->questionbankentryid);
         $data->questionid = $this->map_question_id($data->questionid);
         $data->timeshown = $this->apply_date_offset($data->timeshown);
+        // The millisecond stamp moves by the same offset, in milliseconds.
+        if (!empty($data->timeshownms)) {
+            $data->timeshownms = (int)$data->timeshownms + ($this->apply_date_offset(1) - 1) * 1000;
+        }
 
         $DB->insert_record('rememberme_slot', $data);
     }

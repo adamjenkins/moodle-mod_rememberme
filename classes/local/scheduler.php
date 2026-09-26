@@ -84,6 +84,15 @@ class scheduler {
      */
     public const LEECH_LAPSES = 8;
 
+    /** @var string An empty queue: the learner did everything asked today, and the day counts. */
+    public const CLEARED_COUNTED = 'counted';
+
+    /** @var string An empty queue after the learner's work, but not a day that counts toward the grade. */
+    public const CLEARED_UNCOUNTED = 'uncounted';
+
+    /** @var string An empty queue that is no doing of the learner's: nothing could be offered at all. */
+    public const CLEARED_NOTHING = 'nothing';
+
     /** @var \stdClass The activity instance. */
     protected \stdClass $instance;
 
@@ -585,7 +594,7 @@ class scheduler {
             'timecreated' => $now,
         ]);
 
-        $this->record_week_progress($userid, $weekno, $insuspension, $now);
+        $this->record_week_progress($userid, $weekno, $now);
 
         return $record;
     }
@@ -665,7 +674,7 @@ class scheduler {
         $latencies = $DB->get_fieldset_select(
             'rememberme_review_log',
             'latency',
-            'rememberme = :instanceid AND userid = :userid AND qtype = :qtype AND latency IS NOT NULL',
+            'rememberme = :instanceid AND userid = :userid AND qtype = :qtype AND latency > 0',
             ['instanceid' => $this->instance->id, 'userid' => $userid, 'qtype' => $qtype]
         );
 
@@ -691,10 +700,9 @@ class scheduler {
      *
      * @param int $userid The learner.
      * @param int $weekno The week number.
-     * @param bool $insuspension Whether this was voluntary work during a break.
      * @param int $now Current time.
      */
-    protected function record_week_progress(int $userid, int $weekno, bool $insuspension, int $now): void {
+    protected function record_week_progress(int $userid, int $weekno, int $now): void {
         // Work during a suspension window is scored like any other, but a
         // week more than half suspended is out of the denominator anyway, so
         // it cannot lose grade credit. It feeds the grace pool instead, at
@@ -924,12 +932,12 @@ class scheduler {
         $studied = $this->count_study_days($this->day_counts($userid, $weekno), (int)$week->clearedmask);
         $fraction = weeks::score_days($required, $studied);
 
-        // Only a record the item count release wrote carries an old score. A
+        // Only a record the item count release wrote carries an old score, and
+        // the record says so itself. It is not inferred from timestamps: a
         // record created since has a legacy target of zero, which the old rule
-        // would read as "nothing was due" and score as a full week.
-        [$weekstart] = $this->get_weeks()->week_bounds($weekno);
-        $switchedat = (int)($this->instance->studydaysfrom ?? 0);
-        if ($switchedat > 0 && $weekstart < $switchedat && (int)$week->snapshottaken < $switchedat) {
+        // scores as a full week, and a restore into a course with later dates
+        // shifts some timestamps and not others.
+        if (!empty($week->legacy)) {
             $fraction = max($fraction, self::legacy_fraction($week));
         }
 
@@ -951,32 +959,130 @@ class scheduler {
     /**
      * Record that nothing more could be offered to the learner right now.
      *
-     * Called when a session cannot start because the queue is empty: every
-     * review due has been answered and today's new items have been drawn. That
-     * is everything the activity asked of the learner today, so the day counts
-     * however few questions it took.
+     * Called when a session cannot start because the queue is empty. If that
+     * is because the learner did everything asked of them today, the day
+     * counts however few questions it took. The result says which case this
+     * was, so the learner can be told the truth about it.
      *
      * @param int $userid The learner.
      * @param int|null $now Current time, or null for now.
+     * @return string One of the CLEARED_ constants.
      */
-    public function mark_day_cleared(int $userid, ?int $now = null): void {
+    public function mark_day_cleared(int $userid, ?int $now = null): string {
         global $DB;
 
         $now = $now ?? time();
-        $weekno = $this->get_weeks()->week_for($now);
-        if (!$this->is_graded_week($weekno)) {
-            return;
+
+        // An empty queue means everything asked was done only if something was
+        // asked. A day with answers in it qualifies. A day with none qualifies
+        // only for a learner who is genuinely up to date; otherwise the queue
+        // is empty because of the activity, not the learner: no questions in
+        // the unlocked bands, questions that fail to load, or no new questions
+        // allowed.
+        [$answered, $rushed] = $this->answers_today($userid, $now);
+        if ($answered === 0 && !$this->is_up_to_date($userid, $now)) {
+            return self::CLEARED_NOTHING;
+        }
+
+        // Outside the graded weeks, and in a week that is mostly a break, no
+        // day counts toward the grade, however complete.
+        $weeks = $this->get_weeks();
+        $weekno = $weeks->week_for($now);
+        if (!$this->is_graded_week($weekno) || $weeks->is_week_suspended($weekno)) {
+            return self::CLEARED_UNCOUNTED;
+        }
+
+        // The queue can also be emptied by tapping through it faster than the
+        // questions could be read. Those answers are not study, so a day
+        // cleared that way does not count: every question answered today must
+        // have been answered properly at least once.
+        if ($rushed > 0) {
+            return self::CLEARED_UNCOUNTED;
         }
 
         $week = $this->ensure_week_record($userid, $weekno, $now);
         $bit = 1 << $this->day_index($weekno, $now);
         if ((int)$week->clearedmask & $bit) {
-            return;
+            return self::CLEARED_COUNTED;
         }
 
         $DB->set_field('rememberme_weeks', 'clearedmask', (int)$week->clearedmask | $bit, ['id' => $week->id]);
         $this->rescore_week($userid, $weekno, $now);
         $this->progress_changed($userid);
+        return self::CLEARED_COUNTED;
+    }
+
+    /**
+     * How many questions the learner answered today, and how many only in a rush.
+     *
+     * A question counts as rushed if none of today's answers to it took long
+     * enough to have been read.
+     *
+     * @param int $userid The learner.
+     * @param int $now Current time.
+     * @return array Two element list: questions answered today, and those of them only rushed.
+     */
+    protected function answers_today(int $userid, int $now): array {
+        global $DB;
+
+        [$start, $end] = $this->day_bounds($now);
+        $row = $DB->get_record_sql(
+            "SELECT COUNT(1) AS answered,
+                    SUM(CASE WHEN proper = 0 THEN 1 ELSE 0 END) AS rushed
+               FROM (SELECT questionbankentryid,
+                            SUM(CASE WHEN latency IS NULL OR latency >= :minlatency THEN 1 ELSE 0 END) AS proper
+                       FROM {rememberme_review_log}
+                      WHERE rememberme = :instanceid AND userid = :userid
+                        AND timecreated >= :start AND timecreated < :end
+                   GROUP BY questionbankentryid) today",
+            [
+                'instanceid' => $this->instance->id,
+                'userid' => $userid,
+                'start' => $start,
+                'end' => $end,
+                'minlatency' => self::MIN_ENGAGED_LATENCY,
+            ]
+        );
+        return [(int)($row->answered ?? 0), (int)($row->rushed ?? 0)];
+    }
+
+    /**
+     * Whether the learner has done everything the activity can ask of them.
+     *
+     * They have studied here before, nothing in the pool is due, and nothing
+     * in the bands open to them is still unseen.
+     *
+     * @param int $userid The learner.
+     * @param int $now Current time.
+     * @return bool True if the learner is genuinely up to date.
+     */
+    protected function is_up_to_date(int $userid, int $now): bool {
+        global $DB;
+
+        $seen = $DB->get_fieldset_select(
+            'rememberme_schedule',
+            'questionbankentryid',
+            'rememberme = :instanceid AND userid = :userid',
+            ['instanceid' => $this->instance->id, 'userid' => $userid]
+        );
+        if (empty($seen)) {
+            return false;
+        }
+        $seen = array_flip(array_map('intval', $seen));
+
+        $entries = $this->pool->get_all_entries();
+        foreach ($this->due_records($userid, $now) as $record) {
+            if (isset($entries[$record->questionbankentryid])) {
+                return false;
+            }
+        }
+
+        foreach (array_keys($this->pool->get_entries_up_to_band($this->evaluate_bands($userid, $now))) as $qbeid) {
+            if (!isset($seen[(int)$qbeid])) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -1348,8 +1454,6 @@ class scheduler {
      * @return float Earned grace, before capping.
      */
     public function earned_grace(int $userid): float {
-        global $DB;
-
         $fromwork = grace::earned_from_work(
             $this->count_break_study($userid),
             (int)$this->instance->sessionsize,
@@ -1390,16 +1494,30 @@ class scheduler {
             );
         }
 
+        // Only answers inside a break period can count, so only those are read.
+        // This runs on every answer, through the grade push, and reading the
+        // learner's whole log each time made a term's work quadratic.
+        $ranges = $this->break_periods();
+        if (empty($ranges)) {
+            return $count;
+        }
+        $params = [
+            'instanceid' => $this->instance->id,
+            'userid' => $userid,
+            'switchedat' => $switchedat,
+            'minlatency' => self::MIN_ENGAGED_LATENCY,
+        ];
+        $within = [];
+        foreach ($ranges as $index => [$from, $to]) {
+            $within[] = "(timecreated >= :from{$index} AND timecreated < :to{$index})";
+            $params["from{$index}"] = $from;
+            $params["to{$index}"] = $to;
+        }
         $rows = $DB->get_recordset_select(
             'rememberme_review_log',
             'rememberme = :instanceid AND userid = :userid AND timecreated >= :switchedat
-                AND (latency IS NULL OR latency >= :minlatency)',
-            [
-                'instanceid' => $this->instance->id,
-                'userid' => $userid,
-                'switchedat' => $switchedat,
-                'minlatency' => self::MIN_ENGAGED_LATENCY,
-            ],
+                AND (latency IS NULL OR latency >= :minlatency) AND (' . implode(' OR ', $within) . ')',
+            $params,
             '',
             'id, questionbankentryid, timecreated'
         );
@@ -1421,6 +1539,43 @@ class scheduler {
         $rows->close();
 
         return $count + count($seen);
+    }
+
+    /**
+     * The periods in which study earns break grace, merged and in order.
+     *
+     * Each suspension window, and each graded week that is mostly suspended.
+     * A week can only be mostly suspended if a window overlaps it, so the
+     * weeks are found from the windows rather than by walking the term.
+     *
+     * @return array List of two element lists, start and end unix timestamps.
+     */
+    protected function break_periods(): array {
+        $weeks = $this->get_weeks();
+        $periods = [];
+        foreach ($this->get_clock()->get_windows() as $window) {
+            [$from, $to] = [(int)$window['timestart'], (int)$window['timeend']];
+            $periods[] = [$from, $to];
+            $first = max(1, $weeks->week_for($from));
+            $last = min((int)$this->instance->activeweeks, $weeks->week_for(max($from, $to - 1)));
+            for ($weekno = $first; $weekno <= $last; $weekno++) {
+                if ($weeks->is_week_suspended($weekno)) {
+                    $periods[] = $weeks->week_bounds($weekno);
+                }
+            }
+        }
+
+        usort($periods, fn($a, $b) => $a[0] <=> $b[0]);
+        $merged = [];
+        foreach ($periods as [$from, $to]) {
+            $lastindex = count($merged) - 1;
+            if ($lastindex >= 0 && $from <= $merged[$lastindex][1]) {
+                $merged[$lastindex][1] = max($merged[$lastindex][1], $to);
+            } else {
+                $merged[] = [$from, $to];
+            }
+        }
+        return $merged;
     }
 
     /**

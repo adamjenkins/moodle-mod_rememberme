@@ -221,17 +221,16 @@ final class study_days_test extends \advanced_testcase {
      * nothing more, which is this call, or the rule exists only in tests.
      */
     public function test_the_empty_queue_response_marks_the_day_cleared(): void {
-        global $DB;
-
-        // No new items may be drawn and nothing has been seen, so nothing can
-        // be offered at all.
-        $DB->set_field('rememberme', 'newperday', 0, ['id' => $this->module->id]);
+        // Everything in the pool was answered yesterday, so nothing is due
+        // and nothing is unseen: the learner is genuinely up to date.
+        $this->study(new scheduler($this->instance()), $this->moment(2, 6), 6);
         $this->setUser($this->student);
 
         $result = get_question::execute((int)$this->module->cmid);
         $result = \core_external\external_api::clean_returnvalue(get_question::execute_returns(), $result);
 
         $this->assertFalse($result['hasquestion']);
+        $this->assertSame(get_string('nothingduedesc', 'rememberme'), $result['message']);
         $this->assertSame(get_string('progresstodaydone', 'rememberme'), $result['todaylabel']);
         $this->assertSame(1, $result['weekdone']);
         $week = $this->week(3);
@@ -356,6 +355,10 @@ final class study_days_test extends \advanced_testcase {
                 'completed' => 10,
                 'fraction' => 1.0,
                 'daysrequired' => 0,
+                // Weeks one and two were recorded by the old release; week
+                // three's record came after the switch, carrying the same old
+                // figures only to prove they are ignored there.
+                'legacy' => $weekno < 3 ? 1 : 0,
             ]);
             // One sitting each week: one study day under the new rule.
             $this->study($scheduler, $this->moment($weekno, 0));
@@ -363,7 +366,7 @@ final class study_days_test extends \advanced_testcase {
 
         $this->assertEqualsWithDelta(1.0, (float)$this->week(1)->fraction, 1.0E-4, 'ended before the switch');
         $this->assertEqualsWithDelta(1.0, (float)$this->week(2)->fraction, 1.0E-4, 'under way at the switch');
-        $this->assertEqualsWithDelta(1 / 3, (float)$this->week(3)->fraction, 1.0E-4, 'began after the switch');
+        $this->assertEqualsWithDelta(1 / 3, (float)$this->week(3)->fraction, 1.0E-4, 'not an old record');
         $this->assertSame(1, (int)$this->week(1)->daysstudied, 'the new figure is still recorded');
     }
 
@@ -453,5 +456,128 @@ final class study_days_test extends \advanced_testcase {
             fn($entry) => $entry->isnew
         );
         $this->assertCount(2, $new, 'a new study day brings a new allowance');
+    }
+
+    /**
+     * Tapping through the whole queue does not earn the cleared day.
+     *
+     * Emptying the queue with answers too fast to have been read used to make
+     * the day count through the "nothing more on offer" path, although the same
+     * answers counted for nothing towards the questions.
+     */
+    public function test_a_queue_tapped_through_does_not_clear_the_day(): void {
+        $scheduler = new scheduler($this->instance());
+        $time = $this->moment(3, 0);
+        foreach (array_slice($this->entries, 0, 2) as $index => $entry) {
+            $scheduler->record_attempt((int)$this->student->id, $entry, 1, 'shortanswer', 1.0, 0, 1, $time + $index);
+        }
+
+        $scheduler->mark_day_cleared((int)$this->student->id, $time + MINSECS);
+        $week = $this->week(3);
+        $this->assertTrue(!$week || (int)$week->clearedmask === 0, 'no cleared flag for a rushed day');
+        $this->assertTrue(!$week || (int)$week->daysstudied === 0);
+
+        // Answering one of them properly is not enough while the other was only tapped.
+        $scheduler->record_attempt((int)$this->student->id, $this->entries[0], 1, 'shortanswer', 1.0, 5000, 1, $time + 30);
+        $scheduler->mark_day_cleared((int)$this->student->id, $time + MINSECS);
+        $this->assertTrue(!$this->week(3) || (int)$this->week(3)->clearedmask === 0);
+
+        // Once each has a proper answer, the day counts.
+        $scheduler->record_attempt((int)$this->student->id, $this->entries[1], 1, 'shortanswer', 1.0, 5000, 1, $time + 40);
+        $scheduler->mark_day_cleared((int)$this->student->id, $time + MINSECS);
+        $this->assertSame(1, (int)$this->week(3)->daysstudied);
+    }
+
+    /**
+     * An activity with no questions configured grants nothing through the web service.
+     */
+    public function test_no_questions_configured_is_not_a_cleared_day(): void {
+        global $DB;
+
+        $DB->delete_records('rememberme_bands', ['rememberme' => $this->module->id]);
+        $this->setUser($this->student);
+
+        $result = get_question::execute((int)$this->module->cmid);
+        $result = \core_external\external_api::clean_returnvalue(get_question::execute_returns(), $result);
+
+        $this->assertFalse($result['hasquestion']);
+        $this->assertSame(get_string('errornoquestions', 'rememberme'), $result['message']);
+        $this->assertSame(0, $result['weekdone']);
+        $this->assertFalse($this->week(3), 'no week record, no cleared day');
+
+        // Nor directly: an empty pool never marks a day.
+        (new scheduler($this->instance()))->mark_day_cleared((int)$this->student->id);
+        $this->assertFalse($this->week(3));
+    }
+
+    /**
+     * A learner with genuinely nothing left to do today still gets the day.
+     *
+     * Everything in the pool was answered yesterday, so nothing is due and
+     * nothing is unseen. That learner is not to be marked down for coming
+     * back to an empty queue.
+     */
+    public function test_an_up_to_date_learner_with_nothing_to_do_gets_the_day(): void {
+        $scheduler = new scheduler($this->instance());
+        $this->study($scheduler, $this->moment(2, 6), 6);
+
+        $now = $this->moment(3, 0) + MINSECS;
+        $this->assertSame(
+            [],
+            $scheduler->get_due_questions((int)$this->student->id, null, $now),
+            'the fixture must leave nothing to offer'
+        );
+
+        $this->assertSame(scheduler::CLEARED_COUNTED, $scheduler->mark_day_cleared((int)$this->student->id, $now));
+        $this->assertSame(1, (int)$this->week(3)->daysstudied);
+    }
+
+    /**
+     * An empty queue caused by the activity, not the learner, is not a day.
+     *
+     * No new questions are allowed and the learner has never studied, so the
+     * queue is empty although nothing was ever asked of them.
+     */
+    public function test_an_activity_that_offers_nothing_does_not_grant_days(): void {
+        global $DB;
+
+        $DB->set_field('rememberme', 'newperday', 0, ['id' => $this->module->id]);
+        $scheduler = new scheduler($this->instance());
+        $now = $this->moment(3, 0) + MINSECS;
+        $this->assertSame([], $scheduler->get_due_questions((int)$this->student->id, null, $now));
+
+        $this->assertSame(scheduler::CLEARED_NOTHING, $scheduler->mark_day_cleared((int)$this->student->id, $now));
+        $this->assertFalse($this->week(3));
+
+        // And the learner is told there is nothing to study, not that they finished.
+        $this->setUser($this->student);
+        $result = get_question::execute((int)$this->module->cmid);
+        $this->assertSame(get_string('nothingoffereddesc', 'rememberme'), $result['message']);
+    }
+
+    /**
+     * A streak after the term ends counts the graded weeks only.
+     *
+     * An earlier release created records for weeks after the term, and a
+     * zero there ended every streak the moment the term was over.
+     */
+    public function test_a_streak_after_the_term_counts_graded_weeks_only(): void {
+        global $DB;
+
+        $DB->set_field('rememberme', 'activeweeks', 2, ['id' => $this->module->id]);
+        $scheduler = new scheduler($this->instance());
+        foreach ([1, 2] as $weekno) {
+            foreach ([0, 1, 2] as $day) {
+                $this->study($scheduler, $this->moment($weekno, $day));
+            }
+        }
+        // The record an earlier release would have left for the week after the term.
+        $DB->insert_record('rememberme_weeks', (object)[
+            'rememberme' => $this->module->id, 'userid' => $this->student->id, 'weekno' => 3, 'fraction' => 0.0,
+        ]);
+
+        $progress = helper::week_progress($scheduler, (int)$this->student->id);
+        $this->assertFalse($progress['graded']);
+        $this->assertSame(2, $progress['streak']);
     }
 }

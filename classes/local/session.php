@@ -499,12 +499,16 @@ class session {
             // question, not from a timestamp the client supplies, because a
             // client supplied duration is trivially forgeable and this one feeds
             // the scheduling signal.
-            $DB->set_field(
-                'rememberme_slot',
-                'timeshown',
-                time(),
-                ['sessionid' => $this->record->id, 'slot' => $slot]
-            );
+            //
+            // The millisecond stamp is what latency is measured from. Whole
+            // seconds made the engagement threshold a coin toss: an honest
+            // answer given within the same second as the render read as 0 ms.
+            $shownms = (int)round(microtime(true) * 1000);
+            $DB->update_record('rememberme_slot', (object)[
+                'id' => $DB->get_field('rememberme_slot', 'id', ['sessionid' => $this->record->id, 'slot' => $slot], MUST_EXIST),
+                'timeshown' => intdiv($shownms, 1000),
+                'timeshownms' => $shownms,
+            ]);
         }
 
         return [$html, $javascript];
@@ -589,6 +593,9 @@ class session {
     public function process_response(int $slot, array $postdata, ?int $now = null): array {
         global $DB;
 
+        // A live answer is timed to the millisecond. A caller that supplies the
+        // moment, which only tests do, gets whole-second timing from it.
+        $nowms = $now === null ? (int)round(microtime(true) * 1000) : null;
         $now = $now ?? time();
 
         $slotrecord = $DB->get_record('rememberme_slot', [
@@ -671,8 +678,17 @@ class session {
             throw new \moodle_exception('errornotgraded', 'rememberme');
         }
 
-        $latency = null;
-        if (!empty($slotrecord->timeshown)) {
+        // A slot is rendered, which stamps timeshown, before any client can
+        // show it. An answer to a slot that was never rendered was not read,
+        // so it is recorded as instant: it still schedules the item, but it
+        // does not count as study. Leaving it unmeasured would have counted it,
+        // because a missing measurement is otherwise given the benefit of the
+        // doubt.
+        $latency = 0;
+        if ($nowms !== null && !empty($slotrecord->timeshownms)) {
+            $latency = max(0, $nowms - (int)$slotrecord->timeshownms);
+        } else if (!empty($slotrecord->timeshown)) {
+            // Slots rendered before millisecond timing existed.
             $latency = max(0, ($now - (int)$slotrecord->timeshown)) * 1000;
         }
 

@@ -96,6 +96,7 @@ class provider implements
                 'daysrequired' => 'privacy:metadata:rememberme_weeks:daysrequired',
                 'daysstudied' => 'privacy:metadata:rememberme_weeks:daysstudied',
                 'clearedmask' => 'privacy:metadata:rememberme_weeks:clearedmask',
+                'legacy' => 'privacy:metadata:rememberme_weeks:legacy',
             ],
             'privacy:metadata:rememberme_weeks'
         );
@@ -126,6 +127,7 @@ class provider implements
                 'questionbankentryid' => 'privacy:metadata:rememberme_slot:questionbankentryid',
                 'isnew' => 'privacy:metadata:rememberme_slot:isnew',
                 'timeshown' => 'privacy:metadata:rememberme_slot:timeshown',
+                'timeshownms' => 'privacy:metadata:rememberme_slot:timeshownms',
             ],
             'privacy:metadata:rememberme_slot'
         );
@@ -384,6 +386,7 @@ class provider implements
                 'daysrequired' => $record->daysrequired,
                 'daysstudied' => $record->daysstudied,
                 'clearedmask' => self::cleared_days($record),
+                'legacy' => transform::yesno($record->legacy),
                 'timemodified' => self::format_time($record->timemodified),
             ];
         }
@@ -449,6 +452,7 @@ class provider implements
                     'isnew' => transform::yesno($slotrecord->isnew),
                     'graded' => transform::yesno($slotrecord->graded),
                     'timeshown' => self::format_time($slotrecord->timeshown),
+                    'timeshownms' => $slotrecord->timeshownms,
                 ];
             }
 

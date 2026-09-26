@@ -109,7 +109,7 @@ class backup_rememberme_activity_structure_step extends backup_questions_activit
         $weeks = new backup_nested_element('weeks');
         $week = new backup_nested_element('week', ['id'], [
             'userid', 'weekno', 'snapshottarget', 'snapshottaken', 'completed', 'fraction',
-            'graceapplied', 'suspended', 'daysrequired', 'daysstudied', 'clearedmask', 'timemodified',
+            'graceapplied', 'suspended', 'daysrequired', 'daysstudied', 'clearedmask', 'legacy', 'timemodified',
         ]);
 
         $sessions = new backup_nested_element('sessions');
@@ -133,7 +133,7 @@ class backup_rememberme_activity_structure_step extends backup_questions_activit
         $sessionslots = new backup_nested_element('sessionslots');
         $sessionslot = new backup_nested_element('sessionslot', ['id'], [
             'slot', 'questionbankentryid', 'questionid', 'bandlevel', 'isnew', 'graded',
-            'timeshown',
+            'timeshown', 'timeshownms',
         ]);
 
         // Build the tree.

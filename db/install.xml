@@ -166,6 +166,7 @@
         <FIELD NAME="daysrequired" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Study days needed for this week to count in full, frozen when the row is created."/>
         <FIELD NAME="daysstudied" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Different days of this week on which the learner studied enough for the day to count."/>
         <FIELD NAME="clearedmask" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="One bit per day of the week, set when the learner reached a point where nothing more could be offered that day. Cannot be rebuilt from the review log, so it is stored."/>
+        <FIELD NAME="legacy" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="1 for a record written under the item count rule, before study day grading. Such a week never scores lower than that rule scored it."/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>
       <KEYS>
@@ -229,6 +230,7 @@
         <FIELD NAME="isnew" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Whether this slot introduced a new item, for the per day new item cap."/>
         <FIELD NAME="graded" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timeshown" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Server side render time, so latency is measured server side rather than trusted from the client."/>
+        <FIELD NAME="timeshownms" TYPE="int" LENGTH="15" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="The same render time in milliseconds, which is what latency is measured from. Zero for slots rendered before millisecond timing."/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>

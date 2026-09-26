@@ -48,16 +48,25 @@ class refresh_grades extends \core\task\scheduled_task {
         require_once($CFG->dirroot . '/mod/rememberme/lib.php');
 
         $now = time();
-        // One extra week after the end of term, so the final week's ending
-        // still reaches the gradebook.
-        $instances = $DB->get_records_select(
-            'rememberme',
-            'grade <> 0 AND coursestart <= :now AND termend + :week >= :now2',
-            ['now' => $now, 'week' => WEEKSECS, 'now2' => $now]
-        );
+        // Until a week after the last graded week has ended, not after the end
+        // of term: a term that ends early in its last week would otherwise
+        // stop being refreshed before that week ends, and a missed final week
+        // would never reach the gradebook.
+        //
+        // The window is worked out here rather than in SQL: multiplying the
+        // week count by a week's seconds overflows a 32 bit integer on
+        // PostgreSQL for a large week count, and one such row would fail the
+        // task for every activity on the site.
+        $instances = $DB->get_recordset_select('rememberme', 'grade <> 0 AND coursestart <= :now', ['now' => $now]);
+        $refreshed = 0;
         foreach ($instances as $instance) {
+            if ((int)$instance->coursestart + ((int)$instance->activeweeks + 1) * WEEKSECS < $now) {
+                continue;
+            }
             rememberme_update_grades($instance);
+            $refreshed++;
         }
-        mtrace('  Refreshed grades for ' . count($instances) . ' rememberme activity(ies).');
+        $instances->close();
+        mtrace('  Refreshed grades for ' . $refreshed . ' rememberme activity(ies).');
     }
 }

@@ -227,6 +227,14 @@ final class mobile_test extends \advanced_testcase {
         $html = $result['templates'][0]['html'];
         $this->assertStringNotContainsString('<core-question', $html);
         $this->assertSame('', $result['javascript']);
+
+        // The app says what the page says, and grants nothing: no questions
+        // configured is not a queue the learner worked through.
+        $this->assertStringContainsString(s(get_string('errornoquestions', 'rememberme')), $html);
+        $this->assertFalse(
+            $DB->record_exists('rememberme_weeks', ['rememberme' => $this->instance->id, 'userid' => $this->student->id]),
+            'no week record, so no cleared day'
+        );
     }
 
     /**

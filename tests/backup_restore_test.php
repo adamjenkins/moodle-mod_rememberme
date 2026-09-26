@@ -487,4 +487,235 @@ final class backup_restore_test extends \advanced_testcase {
             'question attempts were orphaned by uninstall'
         );
     }
+
+    /**
+     * Back the course up with learner data and restore it as a new course.
+     *
+     * Only a course restore moves dates: the offset is the new course start
+     * date minus the old one (backup/util/plan/restore_step.class.php,
+     * apply_date_offset), so this is the path that exercises every
+     * apply_date_offset call in the restore step.
+     *
+     * @param int $shift Seconds to move the course start date by.
+     * @param callable|null $edit Called with the extracted backup directory before restoring.
+     * @return \stdClass The restored activity instance.
+     */
+    protected function restore_course_with_users(int $shift, ?callable $edit = null): \stdClass {
+        global $CFG, $DB, $USER;
+        require_once($CFG->dirroot . '/backup/util/includes/backup_includes.php');
+        require_once($CFG->dirroot . '/backup/util/includes/restore_includes.php');
+
+        $bc = new \backup_controller(
+            \backup::TYPE_1COURSE,
+            $this->course->id,
+            \backup::FORMAT_MOODLE,
+            \backup::INTERACTIVE_NO,
+            \backup::MODE_GENERAL,
+            $USER->id
+        );
+        $bc->get_plan()->get_setting('users')->set_value(true);
+        $bc->execute_plan();
+        $file = $bc->get_results()['backup_destination'];
+        $bc->destroy();
+
+        $dirname = 'rememberme_restore_' . $shift . '_' . ($edit ? 'edited' : 'plain');
+        $path = make_backup_temp_directory($dirname);
+        $file->extract_to_pathname(get_file_packer('application/vnd.moodle.backup'), $path);
+        if ($edit) {
+            $edit($path);
+        }
+
+        $newcourseid = \restore_dbops::create_new_course('Restored', 'restored' . $shift, $this->course->category);
+        $rc = new \restore_controller(
+            $dirname,
+            $newcourseid,
+            \backup::INTERACTIVE_NO,
+            \backup::MODE_GENERAL,
+            $USER->id,
+            \backup::TARGET_NEW_COURSE
+        );
+        $rc->get_plan()->get_setting('users')->set_value(true);
+        $rc->get_plan()->get_setting('course_startdate')->set_value((int)$this->course->startdate + $shift);
+        $this->assertTrue($rc->execute_precheck(), 'restore precheck');
+        $rc->execute_plan();
+        $rc->destroy();
+
+        return $DB->get_record('rememberme', ['course' => $newcourseid], '*', MUST_EXIST);
+    }
+
+    /**
+     * Learner data restored into a later course keeps its meaning.
+     *
+     * Two date fields were left behind by the offset. A week record's
+     * snapshottaken, which made a record written since study day grading look
+     * like one from before it and score a full week; and an answer's wasdue,
+     * which made every restored answer look late and cost the learner their
+     * punctuality grace.
+     */
+    public function test_learner_data_restored_into_a_later_course_keeps_its_meaning(): void {
+        global $DB;
+
+        [$student] = $this->answer_one_question();
+        $switchedat = time() - HOURSECS;
+        $DB->set_field('rememberme', 'studydaysfrom', $switchedat, ['id' => $this->instance->id]);
+        $weekno = 1;
+        $old = $DB->get_record(
+            'rememberme_weeks',
+            ['rememberme' => $this->instance->id, 'userid' => $student->id, 'weekno' => $weekno],
+            '*',
+            MUST_EXIST
+        );
+        $this->assertSame(0, (int)$old->legacy, 'the fixture record was written by the new code');
+        $DB->set_field('rememberme_weeks', 'clearedmask', 5, ['id' => $old->id]);
+
+        $due = time() - DAYSECS;
+        $DB->insert_record('rememberme_review_log', (object)[
+            'rememberme' => $this->instance->id, 'userid' => $student->id,
+            'questionbankentryid' => 1, 'questionid' => 1, 'qtype' => 'shortanswer', 'rating' => 3,
+            'fraction' => 1.0, 'latency' => 4000, 'weekno' => $weekno, 'wasdue' => $due, 'timecreated' => $due + 60,
+        ]);
+
+        $shift = 52 * WEEKSECS;
+        $restored = $this->restore_course_with_users($shift);
+
+        $this->assertSame($switchedat + $shift, (int)$restored->studydaysfrom);
+        $window = $DB->get_record('rememberme_suspensions', ['rememberme' => $this->instance->id], '*', MUST_EXIST);
+        $moved = $DB->get_record('rememberme_suspensions', ['rememberme' => $restored->id], '*', MUST_EXIST);
+        $this->assertSame((int)$window->timestart + $shift, (int)$moved->timestart, 'the break moves with the course');
+        $this->assertSame((int)$window->timeend + $shift, (int)$moved->timeend);
+        $week = $DB->get_record(
+            'rememberme_weeks',
+            ['rememberme' => $restored->id, 'userid' => $student->id, 'weekno' => $weekno],
+            '*',
+            MUST_EXIST
+        );
+        $this->assertSame(0, (int)$week->legacy, 'still a record from after the switch');
+        $this->assertSame((int)$old->snapshottaken + $shift, (int)$week->snapshottaken);
+        $this->assertSame(5, (int)$week->clearedmask, 'the cleared days come across');
+        $this->assertSame((int)$old->daysrequired, (int)$week->daysrequired);
+
+        // Rescored in the restored course it is judged on study days alone:
+        // two cleared days of three, not the old rule's full week for a
+        // record with no item target.
+        $scheduler = new \mod_rememberme\local\scheduler($restored);
+        $rescored = $scheduler->rescore_week((int)$student->id, $weekno, time() + $shift, false);
+        $this->assertEqualsWithDelta(2 / 3, (float)$rescored->fraction, 1.0E-4);
+
+        $log = $DB->get_record_select('rememberme_review_log', 'rememberme = ? AND wasdue > 0', [$restored->id], '*', MUST_EXIST);
+        $this->assertSame($due + $shift, (int)$log->wasdue);
+        $this->assertSame($due + 60 + $shift, (int)$log->timecreated);
+
+        $queued = $DB->record_exists_select(
+            'task_adhoc',
+            'classname = ? AND ' . $DB->sql_like('customdata', '?'),
+            ['\\mod_rememberme\\task\\recalculate_weeks', '%"instanceid":' . $restored->id . '%']
+        );
+        $this->assertTrue($queued, 'the restored weeks are queued to be rescored');
+    }
+
+    /**
+     * A hand edited backup cannot put out of range values into the new fields.
+     */
+    public function test_restore_constrains_the_study_day_fields(): void {
+        global $CFG, $DB;
+        require_once($CFG->dirroot . '/mod/rememberme/lib.php');
+
+        [$student] = $this->answer_one_question();
+        $edit = function (string $path): void {
+            $files = glob($path . '/activities/rememberme_*/rememberme.xml');
+            $this->assertCount(1, $files);
+            $xml = file_get_contents($files[0]);
+            $xml = preg_replace('~<studydays>\d+</studydays>~', '<studydays>50</studydays>', $xml, 1, $one);
+            $xml = preg_replace('~<termend>\d+</termend>~', '<termend>99999999999</termend>', $xml, 1, $two);
+            $xml = preg_replace('~<clearedmask>\d+</clearedmask>~', '<clearedmask>999</clearedmask>', $xml, 1, $three);
+            $xml = preg_replace('~<daysstudied>\d+</daysstudied>~', '<daysstudied>40</daysstudied>', $xml, 1, $four);
+            $this->assertSame([1, 1, 1, 1], [$one, $two, $three, $four], 'every field was edited');
+            file_put_contents($files[0], $xml);
+        };
+
+        $restored = $this->restore_course_with_users(0, $edit);
+
+        $this->assertSame(7, (int)$restored->studydays);
+        $this->assertSame(REMEMBERME_MAX_TERM_WEEKS, (int)$restored->activeweeks);
+        $this->assertSame((int)$restored->coursestart + REMEMBERME_MAX_TERM_WEEKS * WEEKSECS, (int)$restored->termend);
+        $week = $DB->get_record('rememberme_weeks', ['rememberme' => $restored->id, 'userid' => $student->id], '*', MUST_EXIST);
+        $this->assertSame(999 & 0x7f, (int)$week->clearedmask);
+        $this->assertSame(7, (int)$week->daysstudied);
+    }
+
+    /**
+     * Rewrite one element in every week of the backed up activity.
+     *
+     * @param string $path The extracted backup directory.
+     * @param string $pattern Regular expression to replace.
+     * @param string $replacement The replacement.
+     * @return int How many replacements were made.
+     */
+    protected function edit_activity_xml(string $path, string $pattern, string $replacement): int {
+        $files = glob($path . '/activities/rememberme_*/rememberme.xml');
+        $this->assertCount(1, $files);
+        $xml = preg_replace($pattern, $replacement, file_get_contents($files[0]), -1, $count);
+        file_put_contents($files[0], $xml);
+        return $count;
+    }
+
+    /**
+     * An old-rule week keeps its protection through a backup and restore.
+     */
+    public function test_an_old_rule_week_stays_one_through_a_restore(): void {
+        global $DB;
+
+        [$student] = $this->answer_one_question();
+        $DB->set_field('rememberme_weeks', 'legacy', 1, ['rememberme' => $this->instance->id, 'userid' => $student->id]);
+        $schedule = $DB->get_record('rememberme_schedule', ['rememberme' => $this->instance->id], '*', MUST_EXIST);
+        $DB->set_field('rememberme_schedule', 'learningdue', time() + 600, ['id' => $schedule->id]);
+
+        $shift = 10 * WEEKSECS;
+        $restored = $this->restore_course_with_users($shift);
+
+        $this->assertSame(1, (int)$DB->get_field('rememberme_weeks', 'legacy', ['rememberme' => $restored->id]));
+        $this->assertEqualsWithDelta(
+            time() + 600 + $shift,
+            (int)$DB->get_field('rememberme_schedule', 'learningdue', ['rememberme' => $restored->id]),
+            5,
+            'the learning step moves with the course'
+        );
+    }
+
+    /**
+     * A backup from before study days restores every week as an old-rule week.
+     */
+    public function test_a_backup_from_before_study_days_restores_old_rule_weeks(): void {
+        global $DB;
+
+        $this->answer_one_question();
+        $edit = function (string $path): void {
+            $this->assertSame(1, $this->edit_activity_xml($path, '~\s*<studydays>\d+</studydays>~', ''));
+        };
+        $before = time();
+        $restored = $this->restore_course_with_users(0, $edit);
+
+        $this->assertGreaterThanOrEqual($before, (int)$restored->studydaysfrom, 'the switch happens at restore');
+        $this->assertSame(1, (int)$DB->get_field('rememberme_weeks', 'legacy', ['rememberme' => $restored->id]));
+    }
+
+    /**
+     * A backup from the first study day build, which has no flag, gets it worked out.
+     *
+     * That build recorded the switch but not which weeks came before it, so the
+     * flag is worked out from the backup's own dates, the way the upgrade does.
+     */
+    public function test_a_backup_without_the_flag_has_it_worked_out(): void {
+        global $DB;
+
+        $this->answer_one_question();
+        // The week record was written before the switch.
+        $DB->set_field('rememberme', 'studydaysfrom', time() + HOURSECS, ['id' => $this->instance->id]);
+        $edit = function (string $path): void {
+            $this->assertSame(1, $this->edit_activity_xml($path, '~\s*<legacy>\d</legacy>~', ''));
+        };
+        $restored = $this->restore_course_with_users(26 * WEEKSECS, $edit);
+
+        $this->assertSame(1, (int)$DB->get_field('rememberme_weeks', 'legacy', ['rememberme' => $restored->id]));
+    }
 }

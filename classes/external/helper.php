@@ -54,9 +54,7 @@ class helper {
      */
     public static function empty_payload(session $session, int $userid, bool $cleared): array {
         $scheduler = $session->get_scheduler();
-        if ($cleared) {
-            $scheduler->mark_day_cleared($userid);
-        }
+        $outcome = $cleared ? $scheduler->mark_day_cleared($userid) : scheduler::CLEARED_UNCOUNTED;
 
         return [
             'hasquestion' => false,
@@ -65,8 +63,29 @@ class helper {
             'javascript' => '',
             'answered' => 0,
             'total' => 0,
-            'message' => get_string('nothingduedesc', 'rememberme'),
+            'message' => self::empty_message($outcome),
         ] + self::progress_fields(self::week_progress($scheduler, $userid));
+    }
+
+    /**
+     * What to tell a learner whose queue is empty, depending on why.
+     *
+     * Only a day that counts is described as counting. A learner with nothing
+     * to study through no doing of their own is told so, rather than told they
+     * have finished.
+     *
+     * @param string $outcome One of the scheduler CLEARED_ constants.
+     * @return string The message.
+     */
+    public static function empty_message(string $outcome): string {
+        switch ($outcome) {
+            case scheduler::CLEARED_COUNTED:
+                return get_string('nothingduedesc', 'rememberme');
+            case scheduler::CLEARED_NOTHING:
+                return get_string('nothingoffereddesc', 'rememberme');
+            default:
+                return get_string('nothingdueplaindesc', 'rememberme');
+        }
     }
 
     /**
@@ -124,7 +143,11 @@ class helper {
             'rememberme' => $instanceid,
             'userid' => $userid,
         ], 'weekno ASC', 'weekno, fraction');
-        $streak = \mod_rememberme\local\weeks::streak(array_map('floatval', $fractions), $weekno);
+        // Counted back from the last graded week at most. An earlier release
+        // created records for weeks after the term, which would otherwise end
+        // every streak as soon as the term was over.
+        $lastweek = min($weekno, (int)$scheduler->get_instance()->activeweeks);
+        $streak = \mod_rememberme\local\weeks::streak(array_map('floatval', $fractions), $lastweek);
 
         if (!$scheduler->is_graded_week($weekno)) {
             // Outside the graded weeks nothing is counted, so showing a

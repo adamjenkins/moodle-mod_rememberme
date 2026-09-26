@@ -71,7 +71,7 @@ if (has_capability('mod/rememberme:viewreports', $context)) {
 if (!has_capability('mod/rememberme:attempt', $context)) {
     // A teacher previewing the activity must not silently accrue schedule
     // records of their own, so answering is a separate capability from viewing.
-    echo $OUTPUT->notification(get_string('nothingduedesc', 'rememberme'), 'info');
+    echo $OUTPUT->notification(get_string('noattemptdesc', 'rememberme'), 'info');
     echo $OUTPUT->footer();
     exit;
 }

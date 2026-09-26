@@ -35,6 +35,8 @@ use mod_rememberme\local\scheduler;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @covers     \mod_rememberme\local\scheduler
  * @covers     ::rememberme_apply_term
+ * @covers     ::rememberme_reset_userdata
+ * @covers     \mod_rememberme\task\refresh_grades
  */
 final class term_breaks_test extends \advanced_testcase {
     /** @var \stdClass The activity module record from the generator. */
@@ -292,6 +294,191 @@ final class term_breaks_test extends \advanced_testcase {
 
         $this->assertFalse($progress['graded']);
         $this->assertSame(get_string('breakweek', 'rememberme'), $progress['weeklabel']);
+
+        // Doing everything on offer in a break week is welcome, but it is not a
+        // study day, and the learner is not told it counts toward the week.
+        $scheduler = $this->scheduler();
+        $this->study($scheduler, time());
+        $this->assertSame(scheduler::CLEARED_UNCOUNTED, $scheduler->mark_day_cleared((int)$this->student->id));
+        $this->assertSame(
+            get_string('nothingdueplaindesc', 'rememberme'),
+            helper::empty_message(scheduler::CLEARED_UNCOUNTED)
+        );
         $this->assertSame('', $progress['todaylabel']);
+    }
+
+    /**
+     * The term cannot be longer than the calendar code can walk.
+     *
+     * Everything that walks the weeks is linear in their number, and a hand
+     * edited backup can ask for any end date at all.
+     */
+    public function test_the_term_is_capped(): void {
+        $data = (object)['coursestart' => 1000000, 'termend' => 1000000 + 100000 * WEEKSECS];
+        rememberme_apply_term($data);
+        $this->assertSame(REMEMBERME_MAX_TERM_WEEKS, $data->activeweeks);
+        $this->assertSame(1000000 + REMEMBERME_MAX_TERM_WEEKS * WEEKSECS, $data->termend);
+
+        $data = (object)['coursestart' => 1000000, 'activeweeks' => 8000000];
+        rememberme_apply_term($data);
+        $this->assertSame(REMEMBERME_MAX_TERM_WEEKS, $data->activeweeks);
+    }
+
+    /**
+     * Resetting a course with a new start date moves the term and its breaks.
+     *
+     * Otherwise every week of the new term falls after the old one ended, and
+     * nothing is graded at all.
+     */
+    public function test_a_course_reset_moves_the_term(): void {
+        global $DB;
+
+        $this->suspend(2, 0, 5);
+        $DB->set_field('rememberme', 'studydaysfrom', $this->termstart + DAYSECS, ['id' => $this->module->id]);
+        $before = $DB->get_record('rememberme', ['id' => $this->module->id]);
+        $window = $DB->get_record('rememberme_suspensions', ['rememberme' => $this->module->id]);
+        $shift = 52 * WEEKSECS;
+
+        $status = rememberme_reset_userdata((object)[
+            'courseid' => $this->module->course,
+            'timeshift' => $shift,
+            'reset_rememberme_all' => 0,
+        ]);
+
+        $after = $DB->get_record('rememberme', ['id' => $this->module->id]);
+        $this->assertSame((int)$before->coursestart + $shift, (int)$after->coursestart);
+        $this->assertSame((int)$before->termend + $shift, (int)$after->termend);
+        $this->assertSame((int)$before->studydaysfrom + $shift, (int)$after->studydaysfrom);
+        $this->assertSame((int)$before->activeweeks, (int)$after->activeweeks, 'the length of term is unchanged');
+        $moved = $DB->get_record('rememberme_suspensions', ['id' => $window->id]);
+        $this->assertSame((int)$window->timestart + $shift, (int)$moved->timestart);
+        $this->assertSame((int)$window->timeend + $shift, (int)$moved->timeend);
+        $this->assertSame(
+            get_string('termdatesupdated', 'rememberme'),
+            $status[0]['item'],
+            'the reset report says the dates moved'
+        );
+    }
+
+    /**
+     * Grades keep being pushed until the last graded week has ended.
+     *
+     * The window used to close a week after the end of term, which for a term
+     * ending early in its last week was before that week was over.
+     */
+    public function test_grades_are_refreshed_until_the_last_week_has_ended(): void {
+        global $DB;
+
+        // Three weeks, the last cut short an hour in; now is two days after it ended.
+        $start = time() - 3 * WEEKSECS - 2 * DAYSECS;
+        $DB->update_record('rememberme', (object)[
+            'id' => $this->module->id,
+            'coursestart' => $start,
+            'termend' => $start + 2 * WEEKSECS + HOURSECS,
+            'activeweeks' => 3,
+        ]);
+
+        $this->expectOutputRegex('/Refreshed grades for 1 rememberme/');
+        (new \mod_rememberme\task\refresh_grades())->execute();
+    }
+
+    /**
+     * Learner records kept through a reset move with the calendar.
+     *
+     * Moving only the term read last term's week records as this term's, so a
+     * learner kept last term's study days and cleared days for free.
+     */
+    public function test_learner_records_kept_through_a_reset_move_with_it(): void {
+        global $DB;
+
+        $scheduler = $this->scheduler();
+        $this->study($scheduler, $this->moment(1, 2));
+        $userid = (int)$this->student->id;
+        $params = ['rememberme' => $this->module->id, 'userid' => $userid];
+        $log = $DB->get_records('rememberme_review_log', $params, 'id');
+        $schedule = $DB->get_records('rememberme_schedule', $params, 'id');
+        $week = $DB->get_record('rememberme_weeks', $params + ['weekno' => 1], '*', MUST_EXIST);
+        $shift = 52 * WEEKSECS;
+
+        rememberme_reset_userdata((object)[
+            'courseid' => $this->module->course,
+            'timeshift' => $shift,
+            'reset_rememberme_all' => 0,
+        ]);
+
+        foreach ($DB->get_records('rememberme_review_log', $params, 'id') as $id => $row) {
+            $this->assertSame((int)$log[$id]->timecreated + $shift, (int)$row->timecreated);
+            $this->assertSame((int)$log[$id]->weekno, (int)$row->weekno, 'still the same week of term');
+        }
+        foreach ($DB->get_records('rememberme_schedule', $params, 'id') as $id => $row) {
+            $this->assertSame((int)$schedule[$id]->duedate + $shift, (int)$row->duedate);
+            $this->assertSame((int)$schedule[$id]->lastreviewed + $shift, (int)$row->lastreviewed);
+        }
+        $moved = $DB->get_record('rememberme_weeks', ['id' => $week->id]);
+        $this->assertSame((int)$week->snapshottaken + $shift, (int)$moved->snapshottaken);
+
+        // Rescored against the moved calendar, the week is exactly what it was.
+        $after = $this->scheduler()->rescore_week($userid, 1, time() + $shift, false);
+        // The stored fraction has four decimal places.
+        $this->assertEqualsWithDelta((float)$week->fraction, (float)$after->fraction, 1.0E-4);
+        $this->assertTrue(
+            $DB->record_exists('task_adhoc', ['classname' => '\\mod_rememberme\\task\\recalculate_weeks']),
+            'the kept records are queued to be rescored and graded'
+        );
+    }
+
+    /**
+     * Clearing learner data clears the switch date, which then protects nothing.
+     */
+    public function test_a_reset_that_clears_learner_data_clears_the_switch_date(): void {
+        global $DB;
+
+        $DB->set_field('rememberme', 'studydaysfrom', $this->termstart + DAYSECS, ['id' => $this->module->id]);
+        rememberme_reset_userdata((object)[
+            'courseid' => $this->module->course,
+            'timeshift' => 52 * WEEKSECS,
+            'reset_rememberme_all' => 1,
+        ]);
+        $this->assertSame(0, (int)$DB->get_field('rememberme', 'studydaysfrom', ['id' => $this->module->id]));
+    }
+
+    /**
+     * Break grace over awkward windows matches a plain count, window by window.
+     *
+     * The count reads only answers inside break periods. It must give exactly
+     * what checking every answer would, for a window spanning several weeks,
+     * overlapping windows, and a mostly suspended week with open days.
+     */
+    public function test_break_grace_matches_a_plain_count_over_awkward_windows(): void {
+        // Week 2 mostly suspended (days 0-4); a window from week 3 day 5 to week 4
+        // day 2, and an overlapping one inside it.
+        $this->suspend(2, 0, 5);
+        $this->suspend(3, 5, 4);
+        $this->suspend(3, 6, 1);
+        $scheduler = $this->scheduler();
+        $userid = (int)$this->student->id;
+
+        $moments = [];
+        foreach ([[1, 3], [2, 1], [2, 5], [2, 6], [3, 2], [3, 5], [3, 6], [4, 1], [4, 3], [5, 0]] as [$weekno, $day]) {
+            $moments[] = $this->moment($weekno, $day);
+        }
+        foreach ($moments as $time) {
+            $this->study($scheduler, $time, 2);
+        }
+
+        // The plain count: every answer, checked one by one.
+        $weeks = $scheduler->get_weeks();
+        $clock = $scheduler->get_clock();
+        $expected = 0;
+        foreach ($moments as $time) {
+            $weekno = $weeks->week_for($time);
+            if ($clock->is_suspended_at($time) || ($scheduler->is_graded_week($weekno) && $weeks->is_week_suspended($weekno))) {
+                $expected += 2;
+            }
+        }
+
+        $this->assertGreaterThan(0, $expected, 'the fixture must hit some break periods');
+        $this->assertLessThan(2 * count($moments), $expected, 'and miss others');
+        $this->assertSame($expected, $scheduler->count_break_study($userid));
     }
 }

@@ -25,6 +25,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/course/moodleform_mod.php');
+require_once($CFG->dirroot . '/mod/rememberme/lib.php');
 
 use core_question\local\bank\question_bank_helper;
 use mod_rememberme\local\bands;
@@ -503,6 +504,8 @@ class mod_rememberme_mod_form extends moodleform_mod {
         $termend = (int)($data['termend'] ?? 0);
         if ($termend <= $termstart) {
             $errors['termend'] = get_string('errortermbackwards', 'rememberme');
+        } else if ($termend - $termstart > REMEMBERME_MAX_TERM_WEEKS * WEEKSECS) {
+            $errors['termend'] = get_string('errortermtoolong', 'rememberme', REMEMBERME_MAX_TERM_WEEKS);
         }
         if ($data['gracebalance'] < 0) {
             $errors['gracebalance'] = get_string('errornonnegative', 'rememberme');

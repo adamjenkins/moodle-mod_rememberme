@@ -230,6 +230,7 @@ final class privacy_provider_test extends \core_privacy\tests\provider_testcase 
             'isnew' => 1,
             'graded' => 0,
             'timeshown' => $now,
+            'timeshownms' => $now * 1000 + 250,
         ]);
     }
 
@@ -409,6 +410,7 @@ final class privacy_provider_test extends \core_privacy\tests\provider_testcase 
         $this->assertEquals(1, $sessions->sessions[0]->itemcount);
         $this->assertCount(1, $sessions->sessions[0]->slots);
         $this->assertEquals($this->questionbankentryid, $sessions->sessions[0]->slots[0]->questionbankentryid);
+        $this->assertNotEmpty($sessions->sessions[0]->slots[0]->timeshownms, 'the millisecond stamp is exported');
     }
 
     /**

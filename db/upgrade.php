@@ -223,5 +223,48 @@ function xmldb_rememberme_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026090109, 'rememberme');
     }
 
+    if ($oldversion < 2026090110) {
+        // Which week records were written under the item count rule is stated
+        // on the record rather than inferred from timestamps: a restore into a
+        // course with later dates moves one timestamp and not the other, and
+        // the inference then treated new records as old ones.
+        $table = new xmldb_table('rememberme_weeks');
+        $field = new xmldb_field('legacy', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'clearedmask');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // At this point every record older than the switch was written by the
+        // old release, whether the switch happened in this run or an earlier one.
+        $DB->execute(
+            'UPDATE {rememberme_weeks}
+                SET legacy = 1
+              WHERE snapshottaken < (SELECT r.studydaysfrom FROM {rememberme} r WHERE r.id = {rememberme_weeks}.rememberme)'
+        );
+
+        upgrade_mod_savepoint(true, 2026090110, 'rememberme');
+    }
+
+    if ($oldversion < 2026090111) {
+        // Answers are timed to the millisecond. Existing slots keep their
+        // whole-second stamp, which latency falls back to.
+        $table = new xmldb_table('rememberme_slot');
+        $field = new xmldb_field('timeshownms', XMLDB_TYPE_INTEGER, '15', null, XMLDB_NOTNULL, null, '0', 'timeshown');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Terms are capped at REMEMBERME_MAX_TERM_WEEKS from now on, and an
+        // activity saved before the cap could hold any number of weeks.
+        $DB->execute(
+            'UPDATE {rememberme}
+                SET activeweeks = :maxweeks, termend = coursestart + :maxseconds
+              WHERE activeweeks > :maxweeks2',
+            ['maxweeks' => 520, 'maxseconds' => 520 * WEEKSECS, 'maxweeks2' => 520]
+        );
+
+        upgrade_mod_savepoint(true, 2026090111, 'rememberme');
+    }
+
     return true;
 }

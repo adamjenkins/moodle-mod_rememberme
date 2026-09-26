@@ -30,6 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   day, like a study day, instead of every answer. Answers from before the
   upgrade are counted as they were.
 - Changing the term or the breaks rescores every week against them.
+- Answers are timed to the millisecond, so a quick honest answer is no longer
+  rounded down to 0 ms and discounted.
+- A term can be at most 520 weeks long.
 
 ### Fixed
 
@@ -39,14 +42,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Before week one and after the last graded week, the weekly count stayed at 0.
 - "This week already counts as complete" was shown whenever today's new
   questions were used up, whatever the state of the week.
+- A day could count as "worked through everything" when the queue was empty for
+  reasons that were not the learner's doing: questions tapped through too fast
+  to read, no questions configured (reachable through the web service and the
+  app), empty unlocked bands, questions that fail to load, or no new questions
+  allowed. A day with no answers now counts only for a learner who is genuinely
+  up to date.
+- An answer to a question the learner was never shown counted as study.
+- The empty-queue message said "every day you study counts toward this week"
+  even when the day did not count: in a break week, outside the term, or when
+  nothing could be offered at all. Each case now has its own message, and a
+  teacher previewing the activity is no longer told they have finished.
+- A study streak ended as soon as the term was over.
+- Resetting a course with a new start date left the term, its breaks and the
+  learners' records in the old term, so nothing was graded afterwards. They all
+  move with the course now, and are rescored.
+- Restoring into a course with different dates left several learner dates behind:
+  when an answer was due (costing punctuality grace), an item's learning step,
+  and a week record's creation time. A restored course could also be given a term
+  of any length.
+- The daily grade push could stop before a short final week ended, and could
+  fail on PostgreSQL for a very long term.
 
 ### Upgrading
 
 - Existing activities get an end of term exactly where their active weeks
   ended, so no week moves.
 - Existing data is kept. Every week is rescored from the review log by an ad hoc
-  task queued during the upgrade. A week that began before the upgrade never
-  scores lower than it did, and its old target and count stay on the record.
+  task queued during the upgrade. A week recorded before the upgrade is marked as
+  such, never scores lower than it did, and keeps its old target and count on the
+  record. Restoring a backup made before this release does the same.
+- An existing activity with a term longer than 520 weeks is shortened to 520.
 
 ## [0.2.0] - 2026-09-01
 

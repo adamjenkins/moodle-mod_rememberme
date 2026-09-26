@@ -535,4 +535,63 @@ final class session_integration_test extends \advanced_testcase {
             'accuracy must not affect the grade at all'
         );
     }
+
+    /**
+     * An answer to a question that was never shown does not count as study.
+     *
+     * Only the next slot is rendered, which stamps when it was shown, but the
+     * answer web service accepts any unanswered slot of the learner's own
+     * session. An unmeasured answer used to be given the benefit of the doubt,
+     * so a script could answer questions it never displayed and have them count.
+     */
+    public function test_an_answer_to_a_slot_never_shown_does_not_count(): void {
+        global $DB;
+
+        $now = time();
+        $session = new session($this->instance_record(), $this->context);
+        $session->start((int)$this->student->id, $now);
+        $slot = $session->next_slot();
+        $this->assertEmpty(
+            $DB->get_field('rememberme_slot', 'timeshown', ['sessionid' => $session->get_record()->id, 'slot' => $slot]),
+            'the fixture must answer a slot that was never rendered'
+        );
+
+        $prefix = $session->get_quba()->get_field_prefix($slot);
+        $session->process_response($slot, [$prefix . 'answer' => 'frog'], $now);
+
+        $log = $DB->get_record('rememberme_review_log', ['rememberme' => $this->instance->id], '*', MUST_EXIST);
+        $this->assertSame(0, (int)$log->latency, 'recorded as instant, not as unmeasured');
+        $this->assertNotNull($log->latency);
+
+        $scheduler = new scheduler($this->instance_record());
+        $this->assertSame(0, $scheduler->today_progress((int)$this->student->id, $now)['done']);
+    }
+
+    /**
+     * A quick honest answer is timed to the millisecond, not rounded to nothing.
+     *
+     * With whole-second stamps, an answer given 0.8 s after the render but in
+     * the same wall-clock second read as 0 ms and did not count, and one such
+     * answer could cost the learner a whole day.
+     */
+    public function test_a_quick_answer_is_timed_to_the_millisecond(): void {
+        global $DB;
+
+        $session = new session($this->instance_record(), $this->context);
+        $session->start((int)$this->student->id);
+        $slot = $session->next_slot();
+
+        // Shown 800 ms ago, in what is still the current second.
+        $shownms = (int)round(microtime(true) * 1000) - 800;
+        $DB->set_field('rememberme_slot', 'timeshownms', $shownms, ['sessionid' => $session->get_record()->id, 'slot' => $slot]);
+        $DB->set_field('rememberme_slot', 'timeshown', time(), ['sessionid' => $session->get_record()->id, 'slot' => $slot]);
+
+        $prefix = $session->get_quba()->get_field_prefix($slot);
+        $session->process_response($slot, [$prefix . 'answer' => 'frog']);
+
+        $latency = (int)$DB->get_field('rememberme_review_log', 'latency', ['rememberme' => $this->instance->id]);
+        $this->assertGreaterThanOrEqual(800, $latency);
+        $this->assertLessThan(60000, $latency);
+        $this->assertTrue(scheduler::is_engaged($latency), 'an 800 ms answer was read');
+    }
 }

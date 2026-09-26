@@ -68,6 +68,14 @@ class get_question extends external_api {
         $instance = helper::get_instance($cm);
         $session = new session($instance, $context);
 
+        // The page refuses an activity with no questions configured, and so
+        // must this: an empty pool would otherwise read as a queue the learner
+        // had worked through.
+        if ($session->get_scheduler()->get_pool()->get_band_count() === 0) {
+            return ['message' => get_string('errornoquestions', 'rememberme')]
+                + helper::empty_payload($session, (int)$USER->id, false);
+        }
+
         if (!$session->load_or_start((int)$USER->id)) {
             // Nothing could be offered at all: the learner has done everything
             // asked of them for now.

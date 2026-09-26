@@ -190,23 +190,80 @@ function rememberme_save_bands(stdClass $data): void {
 }
 
 /**
+ * Move every date in a course's activities by the same amount.
+ *
+ * The same set of dates restore moves (backup/moodle2/restore_rememberme_stepslib.php),
+ * so that learner records kept through a course reset stay consistent with
+ * the moved calendar: week numbers, the day an answer fell on, when it was due
+ * and whether it came before the switch to study day grading all keep their
+ * meaning. Moving only the term would read last term's weeks as this term's.
+ *
+ * @param int $courseid The course.
+ * @param int $shift Seconds to move by.
+ */
+function rememberme_shift_dates(int $courseid, int $shift): void {
+    global $DB;
+
+    shift_course_mod_dates('rememberme', ['coursestart', 'termend', 'studydaysfrom'], $shift, $courseid);
+
+    $inorequal = 'IN (SELECT id FROM {rememberme} WHERE course = :courseid)';
+    $sessions = "IN (SELECT s.id FROM {rememberme_session} s JOIN {rememberme} r ON r.id = s.rememberme
+                      WHERE r.course = :courseid)";
+    $tables = [
+        ['rememberme_suspensions', 'rememberme', ['timestart', 'timeend']],
+        ['rememberme_schedule', 'rememberme', ['lastreviewed', 'duedate', 'learningdue']],
+        ['rememberme_review_log', 'rememberme', ['timecreated', 'wasdue']],
+        ['rememberme_bandstate', 'rememberme', ['firstsession', 'bandsince', 'lastunlockwindow']],
+        ['rememberme_weeks', 'rememberme', ['snapshottaken']],
+        ['rememberme_session', 'rememberme', ['timecreated', 'timemodified', 'timefinished']],
+        ['rememberme_slot', 'sessionid', ['timeshown']],
+    ];
+    foreach ($tables as [$table, $key, $fields]) {
+        $where = $key === 'sessionid' ? "sessionid {$sessions}" : "rememberme {$inorequal}";
+        foreach ($fields as $field) {
+            // Zero means "never", as it does for restore's offset.
+            $DB->execute(
+                "UPDATE {{$table}} SET {$field} = {$field} + :shift WHERE {$field} <> 0 AND {$where}",
+                ['shift' => $shift, 'courseid' => $courseid]
+            );
+        }
+    }
+    $DB->execute(
+        "UPDATE {rememberme_slot} SET timeshownms = timeshownms + :shift WHERE timeshownms <> 0 AND sessionid {$sessions}",
+        ['shift' => $shift * 1000, 'courseid' => $courseid]
+    );
+}
+
+/**
+ * The longest term an activity can have, in weeks.
+ *
+ * Every calculation that walks the calendar is linear in the number of weeks,
+ * so it has to be bounded: a hand edited backup could otherwise ask for
+ * millions. Ten years is far beyond any real term.
+ */
+define('REMEMBERME_MAX_TERM_WEEKS', 520);
+
+/**
  * Derive the number of graded weeks from the start and end of term.
  *
  * The term is set as two dates, but everything that walks the calendar counts
  * weeks, so the count is kept alongside and derived here whenever the dates are
  * saved. A partial last week is a week. Data that carries a week count but no
  * end of term, such as a backup made before the end date existed, gets an end
- * that falls exactly where its weeks did.
+ * that falls exactly where its weeks did. Either way the term is capped at
+ * REMEMBERME_MAX_TERM_WEEKS.
  *
  * @param stdClass $data Instance data with coursestart and termend or activeweeks.
  */
 function rememberme_apply_term(stdClass $data): void {
     $start = (int)($data->coursestart ?? 0);
+    $longest = $start + REMEMBERME_MAX_TERM_WEEKS * WEEKSECS;
     if (!empty($data->termend) && (int)$data->termend > $start) {
-        $data->activeweeks = max(1, (int)ceil(((int)$data->termend - $start) / WEEKSECS));
+        $data->termend = min((int)$data->termend, $longest);
+        $data->activeweeks = max(1, (int)ceil(($data->termend - $start) / WEEKSECS));
         return;
     }
-    $data->activeweeks = max(1, (int)($data->activeweeks ?? 15));
+    $data->activeweeks = min(REMEMBERME_MAX_TERM_WEEKS, max(1, (int)($data->activeweeks ?? 15)));
     $data->termend = $start + $data->activeweeks * WEEKSECS;
 }
 
@@ -408,7 +465,26 @@ function rememberme_reset_userdata($data): array {
     $status = [];
     $componentstr = get_string('modulenameplural', 'rememberme');
 
+    // Moving the course start date moves the term with it, as restore does,
+    // whether or not learner data is being cleared. Without this every week of
+    // the new term falls after the old term's end and nothing is graded.
+    if (!empty($data->timeshift)) {
+        rememberme_shift_dates((int)$data->courseid, (int)$data->timeshift);
+        $status[] = [
+            'component' => $componentstr,
+            'item' => get_string('termdatesupdated', 'rememberme'),
+            'error' => false,
+        ];
+    }
+
     if (empty($data->reset_rememberme_all)) {
+        // Learner data kept: it moved with the calendar, so rescore and push
+        // grades against the new dates.
+        if (!empty($data->timeshift)) {
+            foreach ($DB->get_fieldset_select('rememberme', 'id', 'course = ?', [$data->courseid]) as $instanceid) {
+                \mod_rememberme\task\recalculate_weeks::queue((int)$instanceid);
+            }
+        }
         return $status;
     }
 
@@ -431,6 +507,10 @@ function rememberme_reset_userdata($data): array {
         ) {
             $DB->delete_records($table, ['rememberme' => $instance->id]);
         }
+
+        // With every learner record gone there is nothing left from before
+        // study day grading, so the switch date no longer means anything.
+        $DB->set_field('rememberme', 'studydaysfrom', 0, ['id' => $instance->id]);
 
         // Reset the gradebook too, or learners keep a grade for data that is gone.
         if (empty($data->reset_gradebook_grades)) {
