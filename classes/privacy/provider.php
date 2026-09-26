@@ -107,6 +107,7 @@ class provider implements
                 'userid' => 'privacy:metadata:rememberme_bandstate:userid',
                 'bandlevel' => 'privacy:metadata:rememberme_bandstate:bandlevel',
                 'firstsession' => 'privacy:metadata:rememberme_bandstate:firstsession',
+                'bestprogress' => 'privacy:metadata:rememberme_bandstate:bestprogress',
             ],
             'privacy:metadata:rememberme_bandstate'
         );
@@ -417,6 +418,7 @@ class provider implements
                 'firstsession' => self::format_time($record->firstsession),
                 'bandsince' => self::format_time($record->bandsince),
                 'lastunlockwindow' => self::format_time($record->lastunlockwindow),
+                'bestprogress' => $record->bestprogress ?? '',
                 'timemodified' => self::format_time($record->timemodified),
             ];
         }

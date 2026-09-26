@@ -29,6 +29,7 @@ require_once($CFG->dirroot . '/mod/rememberme/lib.php');
 
 use core_question\local\bank\question_bank_helper;
 use mod_rememberme\local\bands;
+use mod_rememberme\local\scheduler;
 
 /**
  * Instance settings form.
@@ -242,6 +243,14 @@ class mod_rememberme_mod_form extends moodleform_mod {
 
         $mform->addElement('static', 'gradingintro', '', get_string('gradingintro', 'rememberme'));
 
+        $mform->addElement('select', 'gradingmethod', get_string('gradingmethod', 'rememberme'), [
+            scheduler::GRADING_STUDYDAYS => get_string('gradingmethod_studydays', 'rememberme'),
+            scheduler::GRADING_BANDS => get_string('gradingmethod_bands', 'rememberme'),
+        ]);
+        $mform->setType('gradingmethod', PARAM_INT);
+        $mform->setDefault('gradingmethod', scheduler::GRADING_STUDYDAYS);
+        $mform->addHelpButton('gradingmethod', 'gradingmethod', 'rememberme');
+
         $mform->addElement('date_time_selector', 'coursestart', get_string('coursestart', 'rememberme'));
         $mform->addHelpButton('coursestart', 'coursestart', 'rememberme');
 
@@ -270,6 +279,13 @@ class mod_rememberme_mod_form extends moodleform_mod {
         $mform->setType('ontimegrace', PARAM_FLOAT);
         $mform->setDefault('ontimegrace', 0.5);
         $mform->addHelpButton('ontimegrace', 'ontimegrace', 'rememberme');
+
+        // These only shape a grade by study days. Graded by band establishment
+        // they would do nothing, and a setting that does nothing should not be
+        // offered. The term and its breaks still pace the scheduling clock.
+        foreach (['studydays', 'gracebalance', 'graceearnrate', 'ontimegrace'] as $studydaysonly) {
+            $mform->hideIf($studydaysonly, 'gradingmethod', 'eq', scheduler::GRADING_BANDS);
+        }
     }
 
     /**
@@ -496,6 +512,12 @@ class mod_rememberme_mod_form extends moodleform_mod {
         // recall. Zero is the way to switch the limit off.
         if ($data['maxchoices'] < 0 || $data['maxchoices'] === 1 || $data['maxchoices'] === 2) {
             $errors['maxchoices'] = get_string('errormaxchoices', 'rememberme');
+        }
+        // A grade by band establishment measures the threshold that moves a
+        // learner on, so it needs bands that unlock on exactly that.
+        $bandgrading = (int)($data['gradingmethod'] ?? scheduler::GRADING_STUDYDAYS) === scheduler::GRADING_BANDS;
+        if ($bandgrading && (int)($data['unlockmode'] ?? -1) !== bands::MODE_MASTERY) {
+            $errors['gradingmethod'] = get_string('errorgradingbands', 'rememberme');
         }
         if (isset($data['studydays']) && ($data['studydays'] < 1 || $data['studydays'] > 7)) {
             $errors['studydays'] = get_string('errorstudydays', 'rememberme');

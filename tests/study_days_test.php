@@ -280,9 +280,12 @@ final class study_days_test extends \advanced_testcase {
     }
 
     /**
-     * The week in progress joins the grade only once it is earned in full.
+     * The grade is a share of the whole term, built up week by week.
+     *
+     * Fifteen graded weeks, so each is worth a fifteenth. The week in progress
+     * counts for what is already earned in it, and can only add.
      */
-    public function test_the_unfinished_week_does_not_lower_the_grade(): void {
+    public function test_the_grade_builds_up_over_the_term(): void {
         $scheduler = new scheduler($this->instance());
         foreach ([0, 1, 2] as $day) {
             $this->study($scheduler, $this->moment(1, $day));
@@ -292,15 +295,14 @@ final class study_days_test extends \advanced_testcase {
 
         $now = $this->moment(3, 0) + 2 * HOURSECS;
         $grade = $scheduler->final_grade((int)$this->student->id, $now);
-        $this->assertSame([1, 2], array_keys($grade['fractions']));
-        $this->assertEqualsWithDelta(0.5, $grade['proportion'], 1.0E-4);
+        $this->assertSame([1, 2], array_keys($grade['fractions']), 'the weeks that have ended');
+        $this->assertEqualsWithDelta((1 + 0 + 1 / 3) / 15, $grade['proportion'], 1.0E-4);
 
         // Earned in full, it counts at once.
         $this->study($scheduler, $this->moment(3, 1));
         $this->study($scheduler, $this->moment(3, 2));
         $grade = $scheduler->final_grade((int)$this->student->id, $this->moment(3, 2) + HOURSECS);
-        $this->assertSame([1, 2, 3], array_keys($grade['fractions']));
-        $this->assertEqualsWithDelta(2 / 3, $grade['proportion'], 1.0E-4);
+        $this->assertEqualsWithDelta((1 + 0 + 1) / 15, $grade['proportion'], 1.0E-4);
     }
 
     /**
@@ -315,8 +317,8 @@ final class study_days_test extends \advanced_testcase {
 
         $grades = grade_get_grades($this->course->id, 'mod', 'rememberme', $this->module->id, $this->student->id);
         $grade = $grades->items[0]->grades[$this->student->id]->grade;
-        // Week one full, week two ended with one day of three.
-        $this->assertEqualsWithDelta(100 * (1 + 1 / 3) / 2, (float)$grade, 1.0E-2);
+        // Week one full, week two ended with one day of three, of fifteen weeks.
+        $this->assertEqualsWithDelta(100 * (1 + 1 / 3) / 15, (float)$grade, 1.0E-2);
     }
 
     /**
@@ -429,7 +431,7 @@ final class study_days_test extends \advanced_testcase {
         }
 
         $grades = grade_get_grades($this->course->id, 'mod', 'rememberme', $this->module->id, $this->student->id);
-        $this->assertEqualsWithDelta(100 * (1 / 3 + 1) / 2, (float)$grades->items[0]->grades[$this->student->id]->grade, 1.0E-2);
+        $this->assertEqualsWithDelta(100 * (1 / 3 + 1) / 15, (float)$grades->items[0]->grades[$this->student->id]->grade, 1.0E-2);
     }
 
     /**

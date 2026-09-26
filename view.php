@@ -90,10 +90,7 @@ echo $OUTPUT->render_from_template('mod_rememberme/session', [
     'audio' => !empty($instance->audiocue),
     'weeklabel' => $progress['weeklabel'],
     'todaylabel' => $progress['todaylabel'],
-    'gradingexplained' => get_string('gradingexplained', 'rememberme', [
-        'days' => $scheduler->required_study_days(),
-        'items' => max(1, (int)$instance->sessionsize),
-    ]),
+    'gradingexplained' => \mod_rememberme\external\helper::grading_explained($scheduler),
     'hasstreak' => $streak > 0,
     'streaklabel' => get_string('streakweeks', 'rememberme', $streak),
     'loading' => get_string('loading', 'rememberme'),

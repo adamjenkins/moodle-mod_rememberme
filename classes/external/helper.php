@@ -55,6 +55,10 @@ class helper {
     public static function empty_payload(session $session, int $userid, bool $cleared): array {
         $scheduler = $session->get_scheduler();
         $outcome = $cleared ? $scheduler->mark_day_cleared($userid) : scheduler::CLEARED_UNCOUNTED;
+        if ($outcome === scheduler::CLEARED_COUNTED && $scheduler->is_band_grading()) {
+            // Graded by bands, a study day earns nothing, so it is not described as counting.
+            $outcome = scheduler::CLEARED_UNCOUNTED;
+        }
 
         return [
             'hasquestion' => false,
@@ -65,6 +69,26 @@ class helper {
             'total' => 0,
             'message' => self::empty_message($outcome),
         ] + self::progress_fields(self::week_progress($scheduler, $userid));
+    }
+
+    /**
+     * One sentence telling the learner what earns the grade, for the grading in use.
+     *
+     * @param scheduler $scheduler The scheduler.
+     * @return string The sentence.
+     */
+    public static function grading_explained(scheduler $scheduler): string {
+        $instance = $scheduler->get_instance();
+        if ($scheduler->is_band_grading()) {
+            return get_string('gradingexplainedbands', 'rememberme', [
+                'floor' => format_float((float)$instance->stabilityfloor, 0),
+                'percent' => format_float(100 * (float)$instance->masteryproportion, 0),
+            ]);
+        }
+        return get_string('gradingexplained', 'rememberme', [
+            'days' => $scheduler->required_study_days(),
+            'items' => max(1, (int)$instance->sessionsize),
+        ]);
     }
 
     /**
@@ -148,6 +172,22 @@ class helper {
         // every streak as soon as the term was over.
         $lastweek = min($weekno, (int)$scheduler->get_instance()->activeweeks);
         $streak = \mod_rememberme\local\weeks::streak(array_map('floatval', $fractions), $lastweek);
+
+        if ($scheduler->is_band_grading()) {
+            // Days do not count toward a grade by band establishment. What the
+            // learner can use is the grade itself, which moves with every
+            // question that sticks.
+            $proportion = $scheduler->band_establishment($userid)['proportion'];
+            return [
+                'done' => 0,
+                'target' => 0,
+                'graded' => true,
+                'weekno' => $weekno,
+                'streak' => 0,
+                'weeklabel' => get_string('bandgradelabel', 'rememberme', format_float(100 * $proportion, 0)),
+                'todaylabel' => '',
+            ];
+        }
 
         if (!$scheduler->is_graded_week($weekno)) {
             // Outside the graded weeks nothing is counted, so showing a

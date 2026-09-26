@@ -178,6 +178,11 @@ class restore_rememberme_activity_structure_step extends restore_questions_activ
         // The form requires at least one question a session and no negative
         // allowance. Either outside that makes the activity offer nothing.
         $data->sessionsize = max(1, (int)($data->sessionsize ?? 20));
+
+        // Only the grading methods that exist, and band grading only with the
+        // unlock rule it measures, exactly as the form insists.
+        $data->gradingmethod = (int)($data->gradingmethod ?? 0) === 1
+            && (int)($data->unlockmode ?? -1) === \mod_rememberme\local\bands::MODE_MASTERY ? 1 : 0;
         $data->newperday = max(0, (int)($data->newperday ?? 10));
 
         $newitemid = $DB->insert_record('rememberme', $data);
@@ -370,6 +375,7 @@ class restore_rememberme_activity_structure_step extends restore_questions_activ
         // progression report renders it, so an arbitrary restored value would drive
         // a lookup for a string that does not exist.
         $data->reason = self::clean_band_reason($data->reason ?? '');
+        $data->bestprogress = self::clean_best_progress($data->bestprogress ?? null);
 
         $DB->insert_record('rememberme_bandstate', $data);
     }
@@ -590,6 +596,32 @@ class restore_rememberme_activity_structure_step extends restore_questions_activ
      */
     protected static function clean_band_number($bandnumber): int {
         return max(1, (int)$bandnumber);
+    }
+
+    /**
+     * Rebuild a restored best-progress record from its valid parts only.
+     *
+     * It is a JSON object of band number to progress between 0 and 1, and it
+     * raises a grade, so anything else in it is dropped rather than trusted.
+     *
+     * @param mixed $json The value from the backup file.
+     * @return string|null Clean JSON, or null if nothing valid was in it.
+     */
+    protected static function clean_best_progress($json): ?string {
+        if (!is_string($json) || $json === '') {
+            return null;
+        }
+        $decoded = json_decode($json, true);
+        if (!is_array($decoded)) {
+            return null;
+        }
+        $clean = [];
+        foreach ($decoded as $band => $progress) {
+            if (is_numeric($band) && (int)$band >= 1 && (int)$band <= 1000 && is_numeric($progress)) {
+                $clean[(int)$band] = min(1.0, max(0.0, (float)$progress));
+            }
+        }
+        return $clean ? json_encode($clean) : null;
     }
 
     /**

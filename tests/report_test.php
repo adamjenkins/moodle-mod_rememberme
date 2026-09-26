@@ -197,7 +197,8 @@ final class report_test extends \advanced_testcase {
         $DB->set_field('rememberme_weeks', 'fraction', 0.9, ['rememberme' => $this->module->id, 'weekno' => 1]);
         rememberme_update_grades($this->instance());
         $stale = grade_get_grades($this->course->id, 'mod', 'rememberme', $this->module->id, $this->student->id);
-        $this->assertEqualsWithDelta(90.0, (float)$stale->items[0]->grades[$this->student->id]->grade, 1.0E-2);
+        // Fourteen graded weeks: fifteen, less the break.
+        $this->assertEqualsWithDelta(100 * 0.9 / 14, (float)$stale->items[0]->grades[$this->student->id]->grade, 1.0E-2);
 
         [$rescored, $learners] = recalculate_weeks::recalculate($this->instance());
 
@@ -207,8 +208,8 @@ final class report_test extends \advanced_testcase {
         $this->assertEqualsWithDelta(1 / 3, $fraction, 1.0E-4);
 
         $grades = grade_get_grades($this->course->id, 'mod', 'rememberme', $this->module->id, $this->student->id);
-        // Week one scored a third; week two is a break and not graded.
-        $this->assertEqualsWithDelta(100 / 3, (float)$grades->items[0]->grades[$this->student->id]->grade, 1.0E-2);
+        // Week one scored a third, of fourteen graded weeks.
+        $this->assertEqualsWithDelta(100 * (1 / 3) / 14, (float)$grades->items[0]->grades[$this->student->id]->grade, 1.0E-2);
     }
 
     /**

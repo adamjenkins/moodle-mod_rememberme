@@ -152,32 +152,51 @@ class weeks {
     }
 
     /**
-     * The final course grade as a proportion, after grace has been allocated.
+     * The grade as a proportion of the whole term, after grace has been allocated.
+     *
+     * Every graded week of the term is an equal share of the grade, from the
+     * first day: the denominator is all of them, not only those that have
+     * happened. So the grade builds up week by week. Averaging only the weeks
+     * so far told a learner who had answered one question in week one that
+     * they had 100%, and one who had finished two weeks the same in week three.
+     *
+     * The week in progress counts for what has been earned in it already, which
+     * can only add to the grade. Grace fills gaps in weeks that have ended and
+     * nowhere else: it is insurance against a bad week, not a way to pre-fill
+     * weeks that have not happened.
      *
      * Grading is adherence, never accuracy. No fraction earned on any individual
      * question reaches this calculation, because grading accuracy would
      * contaminate the correctness signal the scheduler depends on by rewarding
      * guess avoidance and answer lookup.
      *
-     * @param array $weeklyfractions Fractions keyed by week number, graded weeks only.
+     * @param array $endedfractions Fractions keyed by week number, graded weeks that have ended.
+     * @param float $currentfraction What has been earned in the graded week in progress, or 0.
+     * @param int $termweeks How many weeks of the whole term are graded.
      * @param float $gracebalance The learner's grace balance.
      * @return array Result with keys proportion, fractions, gracespent and gracelog.
      */
-    public static function final_proportion(array $weeklyfractions, float $gracebalance): array {
-        if (empty($weeklyfractions)) {
+    public static function term_proportion(
+        array $endedfractions,
+        float $currentfraction,
+        int $termweeks,
+        float $gracebalance
+    ): array {
+        if ($termweeks <= 0) {
+            // Every week of the term is suspended: there is nothing to earn.
             return [
-                'proportion' => 1.0,
+                'proportion' => 0.0,
                 'fractions' => [],
                 'gracespent' => 0.0,
                 'gracelog' => [],
             ];
         }
 
-        $allocated = grace::allocate($weeklyfractions, $gracebalance);
-        $total = array_sum($allocated['fractions']);
+        $allocated = grace::allocate($endedfractions, $gracebalance);
+        $earned = array_sum($allocated['fractions']) + min(1.0, max(0.0, $currentfraction));
 
         return [
-            'proportion' => $total / count($allocated['fractions']),
+            'proportion' => min(1.0, $earned / $termweeks),
             'fractions' => $allocated['fractions'],
             'gracespent' => $allocated['spent'],
             'gracelog' => $allocated['log'],

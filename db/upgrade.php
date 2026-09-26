@@ -266,5 +266,38 @@ function xmldb_rememberme_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026090111, 'rememberme');
     }
 
+    if ($oldversion < 2026090112) {
+        // The recalculate grades capability arrives with this version; there is
+        // nothing to migrate.
+        upgrade_mod_savepoint(true, 2026090112, 'rememberme');
+    }
+
+    if ($oldversion < 2026090113) {
+        // Grades are now a share of the whole term rather than an average of
+        // the weeks so far, which had put every learner who had answered
+        // anything in week one at 100%. Nothing stored changes; the gradebook
+        // is brought up to date by rescoring every activity.
+        foreach ($DB->get_fieldset_select('rememberme', 'id', '1 = 1') as $instanceid) {
+            \mod_rememberme\task\recalculate_weeks::queue((int)$instanceid);
+        }
+        upgrade_mod_savepoint(true, 2026090113, 'rememberme');
+    }
+
+    if ($oldversion < 2026090114) {
+        // A second way of grading, by band establishment. Every existing
+        // activity keeps grading on study days, which is the default.
+        $table = new xmldb_table('rememberme');
+        $field = new xmldb_field('gradingmethod', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '0', 'studydaysfrom');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        $table = new xmldb_table('rememberme_bandstate');
+        $field = new xmldb_field('bestprogress', XMLDB_TYPE_TEXT, null, null, null, null, null, 'lastunlockwindow');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        upgrade_mod_savepoint(true, 2026090114, 'rememberme');
+    }
+
     return true;
 }

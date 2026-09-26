@@ -84,6 +84,12 @@ class scheduler {
      */
     public const LEECH_LAPSES = 8;
 
+    /** @var int Grade on study days in each week of the term. */
+    public const GRADING_STUDYDAYS = 0;
+
+    /** @var int Grade on how far each band is established, weighted by its items. */
+    public const GRADING_BANDS = 1;
+
     /** @var string An empty queue: the learner did everything asked today, and the day counts. */
     public const CLEARED_COUNTED = 'counted';
 
@@ -707,7 +713,9 @@ class scheduler {
         // week more than half suspended is out of the denominator anyway, so
         // it cannot lose grade credit. It feeds the grace pool instead, at
         // final grade calculation.
-        if ($this->rescore_week($userid, $weekno, $now) !== null) {
+        // Graded by band establishment, every answer can move the grade,
+        // whether or not it fell inside the term's weeks.
+        if ($this->rescore_week($userid, $weekno, $now) !== null || $this->is_band_grading()) {
             $this->progress_changed($userid);
         }
     }
@@ -1396,6 +1404,69 @@ class scheduler {
     }
 
     /**
+     * Whether this activity grades on band establishment.
+     *
+     * Only with bands that unlock on mastery: the grade then measures the same
+     * thing that moves a learner on, and anything else would grade a threshold
+     * the learner is never shown.
+     *
+     * @return bool True if the grade is band establishment.
+     */
+    public function is_band_grading(): bool {
+        return (int)($this->instance->gradingmethod ?? self::GRADING_STUDYDAYS) === self::GRADING_BANDS
+            && (int)$this->instance->unlockmode === bands::MODE_MASTERY
+            && $this->pool->get_band_count() > 0;
+    }
+
+    /**
+     * A learner's grade from band establishment, keeping the best reached.
+     *
+     * Each band earns its share of the items in proportion to how far it is
+     * established. Credit for a band never goes down: the best progress is
+     * stored on the learner's band state and used whenever it is higher than
+     * today's, so ordinary forgetting after a band was established costs
+     * nothing. A learner who has never started has no band state, and nothing
+     * is stored for them.
+     *
+     * @param int $userid The learner.
+     * @return array With proportion, and bands keyed by band number, each with items, progress and best.
+     */
+    public function band_establishment(int $userid): array {
+        global $DB;
+
+        $state = $DB->get_record('rememberme_bandstate', ['rememberme' => $this->instance->id, 'userid' => $userid]);
+        $stored = $state && $state->bestprogress !== null ? (array)json_decode($state->bestprogress, true) : [];
+
+        $sizes = [];
+        $best = [];
+        $bands = [];
+        $changed = false;
+        for ($level = 1; $level <= $this->pool->get_band_count(); $level++) {
+            $entries = $this->pool->get_entries_in_band($level);
+            $sizes[$level] = count($entries);
+            $progress = bands::establishment_progress(
+                $this->stabilities_for_entries($userid, array_keys($entries)),
+                count($entries),
+                (float)$this->instance->stabilityfloor,
+                (float)$this->instance->masteryproportion
+            );
+            $kept = (float)($stored[$level] ?? 0.0);
+            $best[$level] = max($kept, $progress);
+            $changed = $changed || $best[$level] > $kept;
+            $bands[$level] = ['items' => $sizes[$level], 'progress' => $progress, 'best' => $best[$level]];
+        }
+
+        if ($state && $changed) {
+            $DB->set_field('rememberme_bandstate', 'bestprogress', json_encode($best), ['id' => $state->id]);
+        }
+
+        return [
+            'proportion' => bands::establishment_grade($sizes, $best),
+            'bands' => $bands,
+        ];
+    }
+
+    /**
      * The learner's final grade proportion for this activity.
      *
      * Grading is schedule adherence, never accuracy. Grading accuracy would
@@ -1404,12 +1475,20 @@ class scheduler {
      *
      * @param int $userid The learner.
      * @param int|null $now Current time, or null for now.
-     * @return array Result carrying proportion, fractions, gracespent and gracelog.
+     * @return array Result carrying proportion, fractions (weeks that have ended, after grace), gracespent and gracelog.
      */
     public function final_grade(int $userid, ?int $now = null): array {
         global $DB;
 
         $now = $now ?? time();
+        if ($this->is_band_grading()) {
+            return [
+                'proportion' => $this->band_establishment($userid)['proportion'],
+                'fractions' => [],
+                'gracespent' => 0.0,
+                'gracelog' => [],
+            ];
+        }
         $weeks = $this->get_weeks();
         $graded = $weeks->graded_weeks();
 
@@ -1418,21 +1497,18 @@ class scheduler {
             'userid' => $userid,
         ], 'weekno ASC', 'weekno, fraction, snapshottarget, completed');
 
+        // Every graded week of the term is in the denominator from the start;
+        // weeks that have not happened yet simply have nothing earned in them.
         $currentweek = $weeks->week_for($now);
-        $fractions = [];
+        $ended = [];
+        $current = 0.0;
         foreach ($graded as $weekno) {
-            if ($weekno > $currentweek) {
-                // A week that has not happened yet is not a shortfall.
-                continue;
-            }
             $fraction = isset($records[$weekno]) ? (float)$records[$weekno]->fraction : 0.0;
-            if ($weekno == $currentweek && $fraction < 1.0) {
-                // Nor is the week in progress, until it has been earned in
-                // full: otherwise every grade dips on the first day of every
-                // week, for learners who have done nothing wrong.
-                continue;
+            if ($weekno < $currentweek) {
+                $ended[$weekno] = $fraction;
+            } else if ($weekno == $currentweek) {
+                $current = $fraction;
             }
-            $fractions[$weekno] = $fraction;
         }
 
         $balance = grace::cap_balance(
@@ -1440,7 +1516,7 @@ class scheduler {
             $this->earned_grace($userid)
         );
 
-        return weeks::final_proportion($fractions, $balance);
+        return weeks::term_proportion($ended, $current, count($graded), $balance);
     }
 
     /**

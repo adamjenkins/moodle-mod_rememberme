@@ -273,4 +273,16 @@ final class mod_form_test extends \advanced_testcase {
         $late = ['suspensionstart' => [self::TERMSTART + 14 * WEEKSECS], 'suspensionend' => [self::TERMSTART + 16 * WEEKSECS]];
         $this->assertArrayHasKey('suspensionend[0]', $this->validate($late));
     }
+
+    /**
+     * Grading by band establishment needs bands that unlock on establishment.
+     *
+     * @return void
+     */
+    public function test_band_grading_needs_mastery_unlocking(): void {
+        $bandgrading = ['gradingmethod' => \mod_rememberme\local\scheduler::GRADING_BANDS];
+        $this->assertArrayHasKey('gradingmethod', $this->validate($bandgrading + ['unlockmode' => bands::MODE_EXHAUSTED]));
+        $this->assertArrayHasKey('gradingmethod', $this->validate($bandgrading + ['unlockmode' => bands::MODE_TIME]));
+        $this->assertArrayNotHasKey('gradingmethod', $this->validate($bandgrading + ['unlockmode' => bands::MODE_MASTERY]));
+    }
 }

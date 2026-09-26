@@ -201,6 +201,7 @@ final class privacy_provider_test extends \core_privacy\tests\provider_testcase 
             'firstsession' => $now - WEEKSECS,
             'bandsince' => $now - DAYSECS,
             'lastunlockwindow' => 0,
+            'bestprogress' => '{"1":1,"2":0.5}',
             'timemodified' => $now,
         ]);
 
@@ -404,6 +405,7 @@ final class privacy_provider_test extends \core_privacy\tests\provider_testcase 
         $bands = $writer->get_related_data([], 'bands');
         $this->assertCount(1, $bands->bands);
         $this->assertEquals(2, $bands->bands[0]->bandlevel);
+        $this->assertSame('{"1":1,"2":0.5}', $bands->bands[0]->bestprogress, 'the kept band grade credit is exported');
 
         $sessions = $writer->get_related_data([], 'sessions');
         $this->assertCount(1, $sessions->sessions);

@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   weeks and updates the gradebook at once. It needs the new capability
   mod/rememberme:recalculategrades, given to editing teachers and managers.
 - A Japanese language pack.
+- A second way of grading, by band establishment ("Grade by"). Each band is
+  worth its share of all the questions and earns it in proportion to how far it
+  is established, counting in full at the same threshold that unlocks the next
+  band. Credit for a band is never taken away. Needs bands that unlock when the
+  current band is established.
 
 ### Changed
 
@@ -28,7 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bands.
 - The page shows study days this week, progress toward today counting, and one
   sentence saying what earns a full grade. The "week complete" message is gone.
-- The unfinished current week no longer lowers the grade.
+- The grade is a share of the whole term: every graded week is an equal part
+  of it from the first day, so it builds up week by week, and the week in
+  progress counts for what is already earned in it. It used to be an average of
+  the weeks so far, which gave anyone who had answered a question in week one
+  100%, and a learner who had finished two weeks the same in week three.
 - The per day cap on new items resets at the same time of day as a study day.
 - "Week one begins" and "Active weeks" are replaced by a start of term and an
   end of term, both dates. Suspension windows must fall within the term.

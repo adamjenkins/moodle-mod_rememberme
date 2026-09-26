@@ -36,6 +36,7 @@
         <FIELD NAME="maxchoices" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Most answer options to present for a multiple choice question, counting the right one. Surplus wrong options are dropped at random. Zero presents every option."/>
         <FIELD NAME="studydays" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="3" SEQUENCE="false" COMMENT="Different days a learner must study in a week for the week to count in full."/>
         <FIELD NAME="studydaysfrom" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="When study day grading took over from the item count target. A week that ended before this keeps the better of its old and new scores. Zero for activities created after the change."/>
+        <FIELD NAME="gradingmethod" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="What the grade measures: 0 study days in each week of the term, 1 how far each band is established, weighted by its share of the items."/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>
@@ -139,6 +140,7 @@
         <FIELD NAME="firstsession" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Time based unlocking counts from here, not from course start."/>
         <FIELD NAME="bandsince" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="When the current band was entered, for the backstop."/>
         <FIELD NAME="lastunlockwindow" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Start of the suspension window in which a band last unlocked, enforcing at most one per window."/>
+        <FIELD NAME="bestprogress" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="JSON object of band number to the best establishment progress reached, 0 to 1. Credit for a band is never taken away, so a grade by band establishment keeps the best."/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>
       <KEYS>

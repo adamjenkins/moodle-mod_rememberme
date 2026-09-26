@@ -136,6 +136,65 @@ class bands {
     }
 
     /**
+     * How far a learner is toward establishing a band, from 0 to 1.
+     *
+     * The same rule as meets_mastery(): items at or above the stability floor,
+     * unseen items counting against. Progress reaches 1 exactly when the band
+     * meets the mastery threshold and so would unlock the next one, and is
+     * proportional before that: with a threshold of 70 per cent, a band with
+     * 35 per cent of its items established is half way.
+     *
+     * @param array $stabilities Stability per item in the band; use null or omit for unseen items.
+     * @param int $banditemcount Total items in the band, including unseen ones.
+     * @param float $stabilityfloor Stability in days at which an item counts as established.
+     * @param float $proportion Share of the band that must be established, 0 to 1.
+     * @return float Progress between 0 and 1.
+     */
+    public static function establishment_progress(
+        array $stabilities,
+        int $banditemcount,
+        float $stabilityfloor,
+        float $proportion
+    ): float {
+        if ($banditemcount <= 0) {
+            return 1.0;
+        }
+        $established = 0;
+        foreach ($stabilities as $stability) {
+            if ($stability !== null && $stability >= $stabilityfloor) {
+                $established++;
+            }
+        }
+        $share = $established / $banditemcount;
+        if ($proportion <= 0.0) {
+            return $share > 0.0 ? 1.0 : 0.0;
+        }
+        return min(1.0, $share / $proportion);
+    }
+
+    /**
+     * The grade from band establishment: each band weighted by its share of the items.
+     *
+     * A band of forty questions is worth four times a band of ten, so a grade
+     * cannot be earned mostly from a small band.
+     *
+     * @param array $bandsizes Items per band, keyed by band number.
+     * @param array $progress Progress per band from 0 to 1, keyed by band number; missing means none.
+     * @return float The grade proportion between 0 and 1.
+     */
+    public static function establishment_grade(array $bandsizes, array $progress): float {
+        $total = array_sum($bandsizes);
+        if ($total <= 0) {
+            return 0.0;
+        }
+        $earned = 0.0;
+        foreach ($bandsizes as $band => $size) {
+            $earned += $size * min(1.0, max(0.0, (float)($progress[$band] ?? 0.0)));
+        }
+        return $earned / $total;
+    }
+
+    /**
      * Decide whether a learner unlocks the next band right now.
      *
      * Evaluated at session build time rather than on a cron schedule, so an

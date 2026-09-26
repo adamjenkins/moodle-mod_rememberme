@@ -104,8 +104,10 @@ learners come back to study, regularly.
 a week needs (3 by default). A day counts once the learner answers a session's
 worth of different questions, or works through everything on offer that day,
 whichever comes first. A week scores the days studied divided by the days
-needed, capped at 1.0, and the grade is the average of the weeks. So 100% means
-studying on that many days every week. The learner sees this on the page as
+needed, capped at 1.0, and every graded week of the term is an equal share of the
+grade from the first day, so the grade builds up week by week. So 100% means
+studying on that many days every week of the term; in a 15-week term, week one
+is worth at most 1/15. The learner sees this on the page as
 "1 of 3 study days this week" and "Today: 2 of 20 questions", with one sentence
 saying exactly what earns a full grade.
 
@@ -115,9 +117,8 @@ saying exactly what earns a full grade.
 - **A short queue is never a penalty.** The second way a day counts means a
   learner with little due is marked down only for not coming, never for having
   nothing to do.
-- **The week in progress does not lower the grade.** It joins the average once
-  it ends, or earlier if it is already earned in full, so grades do not dip at
-  the start of every week.
+- **The week in progress counts for what is earned in it already**, which can
+  only add to the grade. Grace fills gaps only in weeks that have ended.
 - **Outside the graded weeks nothing is counted**, and the page says when grading
   begins or that it has ended, rather than showing a count stuck at zero.
 - Grades reach the gradebook as soon as they change, and a daily task pushes the
@@ -146,6 +147,17 @@ Progress is shown as a **personal streak**. There is deliberately no leaderboard
 because the queue is capped and driven by each learner's own memory state, the
 learner with the most reviews is the one with the most lapses, so a leaderboard
 would rank learners roughly inversely to how well they know the material.
+
+### Grading by band establishment instead
+
+With bands that unlock "when the current band is established", a teacher can
+choose **Grade by: band establishment**. Each band is worth its share of all the
+questions (a band of 40 counts four times one of 10) and earns it in proportion to
+how far it is established: it counts in full once the mastery proportion of its
+questions has reached the stability floor, the same rule that unlocks the next
+band. The best progress each band reaches is kept, so forgetting after a band was
+established never lowers the grade. Learners see their grade so far in place of
+the study-day count.
 
 ### The term and its breaks
 

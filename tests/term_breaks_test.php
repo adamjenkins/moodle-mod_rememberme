@@ -183,9 +183,11 @@ final class term_breaks_test extends \advanced_testcase {
         }
 
         // Nothing at all in week two.
+        // Fourteen graded weeks, the break taken out, and nothing lost for it.
         $grade = $scheduler->final_grade((int)$this->student->id, $this->moment(3, 0));
         $this->assertSame([1], array_keys($grade['fractions']));
-        $this->assertEqualsWithDelta(1.0, $grade['proportion'], 1.0E-4);
+        $this->assertCount(14, $scheduler->get_weeks()->graded_weeks());
+        $this->assertEqualsWithDelta(1 / 14, $grade['proportion'], 1.0E-4);
     }
 
     /**
@@ -480,5 +482,40 @@ final class term_breaks_test extends \advanced_testcase {
         $this->assertGreaterThan(0, $expected, 'the fixture must hit some break periods');
         $this->assertLessThan(2 * count($moments), $expected, 'and miss others');
         $this->assertSame($expected, $scheduler->count_break_study($userid));
+    }
+
+    /**
+     * The reported case, end to end: 16 weeks, one suspended, one day of three in week one.
+     *
+     * Fifteen weeks are graded, so the most anyone can have in week one is
+     * 1/15, and one study day of three is a third of that. It used to be 100%
+     * for anybody who had answered a single question.
+     */
+    public function test_a_first_week_grade_is_a_fifteenth_of_the_term_at_most(): void {
+        global $CFG, $DB;
+        require_once($CFG->libdir . '/gradelib.php');
+
+        $start = time() - HOURSECS;
+        $DB->update_record('rememberme', (object)[
+            'id' => $this->module->id,
+            'coursestart' => $start,
+            'termend' => $start + 16 * WEEKSECS,
+            'activeweeks' => 16,
+        ]);
+        $this->getDataGenerator()->get_plugin_generator('mod_rememberme')
+            ->create_suspension((int)$this->module->id, $start + 4 * WEEKSECS, $start + 5 * WEEKSECS);
+        $scheduler = $this->scheduler();
+        $this->assertCount(15, $scheduler->get_weeks()->graded_weeks());
+
+        // One study day: three different questions, properly answered.
+        $this->study($scheduler, time());
+
+        $grades = grade_get_grades($this->module->course, 'mod', 'rememberme', $this->module->id, $this->student->id);
+        $grade = (float)$grades->items[0]->grades[$this->student->id]->grade;
+        $this->assertEqualsWithDelta(100 * (1 / 3) / 15, $grade, 1.0E-2);
+
+        // A full first week is a fifteenth, the most week one can be worth.
+        $DB->set_field('rememberme_weeks', 'fraction', 1.0, ['userid' => $this->student->id, 'weekno' => 1]);
+        $this->assertEqualsWithDelta(1 / 15, $scheduler->final_grade((int)$this->student->id)['proportion'], 1.0E-9);
     }
 }

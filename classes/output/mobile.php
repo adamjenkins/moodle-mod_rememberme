@@ -64,10 +64,7 @@ class mobile {
         $data = [
             'cmid' => $cmid,
             'name' => format_string($instance->name),
-            'gradingexplained' => get_string('gradingexplained', 'rememberme', [
-                'days' => $scheduler->required_study_days(),
-                'items' => max(1, (int)$instance->sessionsize),
-            ]),
+            'gradingexplained' => \mod_rememberme\external\helper::grading_explained($scheduler),
         ];
 
         // A teacher may open the activity in the app but must not accrue

@@ -68,7 +68,7 @@ class backup_rememberme_activity_structure_step extends backup_questions_activit
             'coursestart', 'activeweeks', 'termend', 'gracebalance', 'graceearnrate', 'passthreshold',
             'uselatency', 'audiocue', 'pausecorrect', 'pauseincorrect', 'grade',
             'completionweeks', 'questionbankcmid', 'ontimegrace', 'maxchoices',
-            'studydays', 'studydaysfrom', 'timecreated', 'timemodified',
+            'studydays', 'studydaysfrom', 'gradingmethod', 'timecreated', 'timemodified',
         ]);
 
         // Teacher configuration: bands and suspension windows. Always backed up.
@@ -103,7 +103,7 @@ class backup_rememberme_activity_structure_step extends backup_questions_activit
         $bandstates = new backup_nested_element('bandstates');
         $bandstate = new backup_nested_element('bandstate', ['id'], [
             'userid', 'bandlevel', 'reason', 'firstsession', 'bandsince',
-            'lastunlockwindow', 'timemodified',
+            'lastunlockwindow', 'bestprogress', 'timemodified',
         ]);
 
         $weeks = new backup_nested_element('weeks');

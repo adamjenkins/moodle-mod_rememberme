@@ -130,31 +130,60 @@ final class weeks_test extends \basic_testcase {
     }
 
     /**
-     * Grading is adherence: a perfect record is 1.0 and grace is untouched.
+     * Every week of the term is an equal share of the grade, from the start.
+     *
+     * The case that was reported: a sixteen week term with one week suspended
+     * is fifteen graded weeks. In week one the most anyone can have is 1/15,
+     * and a learner a third of the way through that week has a third of it.
+     * Averaging only the weeks so far had given that learner 100%.
      */
-    public function test_final_proportion_of_a_perfect_record(): void {
-        $result = weeks::final_proportion([1 => 1.0, 2 => 1.0, 3 => 1.0], 1.0);
+    public function test_the_grade_is_a_share_of_the_whole_term(): void {
+        $this->assertEqualsWithDelta(1 / 15, weeks::term_proportion([], 1.0, 15, 0.0)['proportion'], 1.0E-9);
+        $this->assertEqualsWithDelta((1 / 3) / 15, weeks::term_proportion([], 1 / 3, 15, 0.0)['proportion'], 1.0E-9);
+        $this->assertEqualsWithDelta(0.0, weeks::term_proportion([], 0.0, 15, 0.0)['proportion'], 1.0E-9);
+
+        // Two full weeks done and the third begun: two fifteenths, not 100%.
+        $this->assertEqualsWithDelta(2 / 15, weeks::term_proportion([1 => 1.0, 2 => 1.0], 0.0, 15, 0.0)['proportion'], 1.0E-9);
+    }
+
+    /**
+     * A perfect record over the whole term is 1.0 and grace is untouched.
+     */
+    public function test_a_perfect_term_is_full_marks(): void {
+        $result = weeks::term_proportion([1 => 1.0, 2 => 1.0, 3 => 1.0], 0.0, 3, 1.0);
         $this->assertEqualsWithDelta(1.0, $result['proportion'], 1.0E-9);
         $this->assertEqualsWithDelta(0.0, $result['gracespent'], 1.0E-9);
     }
 
     /**
-     * Grace is applied across the whole course, not week by week.
+     * Grace is applied across the weeks that have ended, not week by week.
      */
-    public function test_final_proportion_applies_grace(): void {
+    public function test_grace_fills_ended_weeks(): void {
         // Without grace this is (1.0 + 0.0 + 1.0) / 3 = 0.667.
-        $result = weeks::final_proportion([1 => 1.0, 2 => 0.0, 3 => 1.0], 1.0);
+        $result = weeks::term_proportion([1 => 1.0, 2 => 0.0, 3 => 1.0], 0.0, 3, 1.0);
         $this->assertEqualsWithDelta(1.0, $result['proportion'], 1.0E-9);
         $this->assertEqualsWithDelta(1.0, $result['gracespent'], 1.0E-9);
         $this->assertCount(1, $result['gracelog']);
     }
 
     /**
-     * A course with every week suspended does not divide by zero.
+     * Grace never fills a week that has not ended.
+     *
+     * It is insurance against a bad week, so it cannot pre-fill the week in
+     * progress or weeks still to come.
      */
-    public function test_fully_suspended_course_does_not_divide_by_zero(): void {
-        $result = weeks::final_proportion([], 1.0);
-        $this->assertEqualsWithDelta(1.0, $result['proportion'], 1.0E-9);
+    public function test_grace_leaves_the_current_and_future_weeks_alone(): void {
+        $result = weeks::term_proportion([1 => 1.0], 0.5, 10, 2.0);
+        $this->assertEqualsWithDelta(1.5 / 10, $result['proportion'], 1.0E-9);
+        $this->assertEqualsWithDelta(0.0, $result['gracespent'], 1.0E-9);
+    }
+
+    /**
+     * A term with every week suspended has nothing to earn, and no division by zero.
+     */
+    public function test_fully_suspended_term_does_not_divide_by_zero(): void {
+        $result = weeks::term_proportion([], 0.0, 0, 1.0);
+        $this->assertEqualsWithDelta(0.0, $result['proportion'], 1.0E-9);
     }
 
     /**
