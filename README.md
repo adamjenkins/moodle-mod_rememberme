@@ -13,7 +13,7 @@ core question engine rather than reimplemented.
 
 ## Requirements
 
-- Moodle 5.2 (`$plugin->requires = 2026042000`, supported branch 502)
+- Moodle 5.2 – 5.3 (`$plugin->requires = 2026042000`, supported branches 502–503)
 - PHP 8.2+
 
 The plugin depends on 5.x-shaped question bank APIs: question banks as

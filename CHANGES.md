@@ -1,5 +1,10 @@
 # Changes
 
+## Unreleased
+
+Declare Moodle 5.3 support. The plugin now declares Moodle 5.2 to 5.3 as its
+supported range. No code changes were needed for 5.3.
+
 ## 0.3.0 — 2026-09-26
 
 Grading has been rebuilt around what a spaced repetition activity is for:

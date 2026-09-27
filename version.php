@@ -32,4 +32,4 @@ $plugin->maturity = MATURITY_ALPHA;
 // question banks as mod_qbank instances and question_bank_entries as the stable
 // identity for a question, are 5.x shaped.
 $plugin->requires = 2026042000;
-$plugin->supported = [502, 502];
+$plugin->supported = [502, 503];
