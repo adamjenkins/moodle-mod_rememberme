@@ -1,0 +1,24 @@
+# camp listing manifest — descriptive content for your plugin's page.
+# Edit freely and commit; camp ingests this file at each tagged release.
+# Schema: https://camp-registry.org/schema/listing.schema.json
+name: mod_rememberme
+summary: 'A Moodle activity that schedules spaced repetition of question bank items, driven by whether each answer was graded correct.'
+description: |
+  Learners revisit each question bank item just before they are likely to
+  forget it. Scheduling uses an FSRS-style memory model, and the rating comes
+  from Moodle's own question grading rather than learner self-assessment, so
+  it works with real question types such as multiple choice, short answer,
+  matching and cloze. Teachers bind question categories as ordered bands that
+  unlock per learner. For teachers who want ongoing retrieval practice from
+  an existing question bank on Moodle 5.2 and later.
+labels:
+  # Required disclosure labels — pick all that apply (RFC §4.7):
+  #   fully-free | freemium | paid-service | external-account
+  #   donation-supported | commercial-support-available
+  - fully-free
+# screenshots:
+#   - path: .camp/screenshots/overview.png
+#     caption: Main view
+links:
+  docs: https://github.com/adamjenkins/moodle-mod_rememberme#readme
+  issues: https://github.com/adamjenkins/moodle-mod_rememberme/issues
