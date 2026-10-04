@@ -8,14 +8,12 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-24.04
-    # moodle.git main rows are experimental: they report but never fail the run.
-    continue-on-error: ${{ matrix.experimental == true }}
 
     services:
       postgres:
         # Pinned to the MINIMUM PostgreSQL that Moodle 5.2 accepts, so that a
         # dependency on anything newer fails here rather than on a site. The
-        # main (5.3) rows override it: main needs PostgreSQL 17
+        # MOODLE_503_STABLE rows override it: 5.3 needs PostgreSQL 17
         # (environment.xml 5.3 block).
         image: ${{ matrix.database == 'pgsql' && (matrix.pgsql-image || 'postgres:16') || '' }}
         env:
@@ -26,7 +24,7 @@ jobs:
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 3
 
       mariadb:
-        # Likewise the minimum MariaDB for 5.2; main (5.3) needs MariaDB 11.4
+        # Likewise the minimum MariaDB for 5.2; MOODLE_503_STABLE needs MariaDB 11.4
         # (environment.xml 5.3 block) and overrides it via the matrix.
         image: ${{ matrix.database == 'mariadb' && (matrix.mariadb-image || 'mariadb:10.11') || '' }}
         env:
@@ -40,9 +38,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # version.php declares supported = [502, 503]. The blocking rows test
-        # MOODLE_502_STABLE; 5.3 has no stable branch yet, so it is covered by
-        # the non-blocking moodle.git main (5.3beta) rows in include: below.
+        # version.php declares supported = [502, 503]. The base rows test
+        # MOODLE_502_STABLE; 5.3 is covered by the MOODLE_503_STABLE rows in
+        # include: below. All rows are blocking.
         # The plugin depends on 5.x-shaped question bank APIs (banks as
         # mod_qbank instances, question_bank_entries as the stable identity).
         #
@@ -52,19 +50,17 @@ jobs:
         php: ['8.3', '8.4']
         moodle-branch: ['MOODLE_502_STABLE']
         database: [pgsql, mariadb]
-        # moodle.git main = 5.3beta: PHP 8.3-8.4, MariaDB >= 11.4.0,
-        # PostgreSQL >= 17. Non-blocking (experimental) by owner decision.
+        # MOODLE_503_STABLE (environment.xml 5.3 block): PHP 8.3-8.4,
+        # MariaDB >= 11.4.0, PostgreSQL >= 17. Blocking.
         include:
           - php: '8.4'
-            moodle-branch: 'main'
+            moodle-branch: 'MOODLE_503_STABLE'
             database: pgsql
-            experimental: true
             pgsql-image: 'postgres:17'
             mariadb-image: 'mariadb:11.4'
           - php: '8.3'
-            moodle-branch: 'main'
+            moodle-branch: 'MOODLE_503_STABLE'
             database: mariadb
-            experimental: true
             pgsql-image: 'postgres:17'
             mariadb-image: 'mariadb:11.4'
 
@@ -131,9 +127,9 @@ jobs:
         run: moodle-plugin-ci mustache
 
       - name: Grunt
-        # Not on main: committed amd/build bundles are built with the 5.2
-        # toolchain, and each branch minifies differently.
-        if: ${{ !cancelled() && matrix.moodle-branch != 'main' }}
+        # Not on MOODLE_503_STABLE: committed amd/build bundles are built with
+        # the 5.2 toolchain, and each branch minifies differently.
+        if: ${{ !cancelled() && matrix.moodle-branch != 'MOODLE_503_STABLE' }}
         run: moodle-plugin-ci grunt --max-lint-warnings 0
 
       - name: PHPUnit tests
