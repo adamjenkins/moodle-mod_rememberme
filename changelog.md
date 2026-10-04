@@ -5,6 +5,12 @@ All notable changes to this plugin are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.3] - 2026-10-04
+
+### Changed
+
+- Release archives leave out development files (`.github`, `.camp`, `tests` and similar) through `.gitattributes` export-ignore rules, which the camp release workflow requires. No change to the plugin itself; this release carries 0.3.2 to the camp registry.
+
 ## [0.3.2] - 2026-10-04
 
 ### Added
