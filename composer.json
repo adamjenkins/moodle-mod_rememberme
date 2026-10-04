@@ -12,7 +12,7 @@
     "license": "GPL-3.0-or-later",
     "require": {
         "moodle/moodle": "^5.2",
-        "moodle/composer-installer": "*"
+        "moodle/composer-installer": "^1.0"
     },
     "require-dev": {
         "squizlabs/php_codesniffer": "*",
