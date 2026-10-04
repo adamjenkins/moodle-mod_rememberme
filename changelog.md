@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The Japanese language pack (lang/ja) is no longer included: releases ship the English strings
+  only, as the Moodle Plugins directory expects. Japanese is provided through Moodle's language
+  packs.
+
 ### Fixed
 
 - The coverage report's summary shows the number of questions in the pool again.

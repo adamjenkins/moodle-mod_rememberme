@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The Japanese language pack (lang/ja) is no longer included: releases ship the English strings
+  only, as the Moodle Plugins directory expects. Japanese is provided through Moodle's language
+  packs.
 - The coverage report's summary shows the number of questions in the pool again.
 
 ## 0.3.1 — 2026-10-04

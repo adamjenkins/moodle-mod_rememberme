@@ -255,9 +255,8 @@ weekly progress, band progress and session records.
 
 ## Languages
 
-English and Japanese (日本語). The Japanese strings are in `lang/ja/`; they are
-used when the site has the Japanese language pack installed and the user has
-chosen Japanese.
+Releases ship the English strings (`lang/en/`) only, as the Moodle Plugins directory expects;
+other languages are provided through Moodle's language packs.
 
 ## Status
 
