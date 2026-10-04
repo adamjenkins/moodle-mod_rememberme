@@ -232,4 +232,19 @@ final class report_test extends \advanced_testcase {
         $this->assertTrue(has_capability('mod/rememberme:viewreports', $context, $teacher));
         $this->assertFalse(has_capability('mod/rememberme:recalculategrades', $context, $this->student));
     }
+
+    /**
+     * The coverage report's summary line shows the pool size. The poolsize string once had no
+     * placeholder, so the count passed by the template was silently dropped.
+     */
+    public function test_coverage_summary_shows_pool_size(): void {
+        global $OUTPUT;
+        $html = $OUTPUT->render_from_template('mod_rememberme/report_coverage', [
+            'pooltotal' => 37,
+            'stabilityfloor' => '4.00',
+            'hasrows' => false,
+        ]);
+        $this->assertStringContainsString(get_string('poolsize', 'mod_rememberme', 37), $html);
+        $this->assertStringContainsString('37', $html);
+    }
 }

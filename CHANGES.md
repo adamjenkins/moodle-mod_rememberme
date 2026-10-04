@@ -1,5 +1,9 @@
 # Changes
 
+## Unreleased
+
+- The coverage report's summary shows the number of questions in the pool again.
+
 ## 0.3.1 — 2026-10-04
 
 Declare Moodle 5.3 support. The plugin now declares Moodle 5.2 to 5.3 as its
