@@ -5,17 +5,26 @@ All notable changes to this plugin are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.2] - 2026-10-04
+
+### Added
+
+- The full GPL-3.0 licence text is now included as `LICENSE` in the repository root. The
+  plugin's licence is unchanged (GPL-3.0-or-later, as its file headers and composer.json say).
 
 ### Changed
 
+- Maturity is now Beta (`MATURITY_BETA`); it was Alpha.
 - The Japanese language pack (lang/ja) is no longer included: releases ship the English strings
   only, as the Moodle Plugins directory expects. Japanese is provided through Moodle's language
   packs.
+- CI tests `MOODLE_503_STABLE` (PHP 8.3–8.4, PostgreSQL 17, MariaDB 11.4) instead of Moodle
+  `main`, now that Moodle 5.3 is released.
 
 ### Fixed
 
-- The coverage report's summary shows the number of questions in the pool again.
+- The coverage report's summary shows the number of questions in the pool again: the
+  `poolsize` string had no `{$a}` placeholder, so the number was missing.
 
 ## [0.3.1] - 2026-10-04
 

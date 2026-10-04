@@ -260,7 +260,7 @@ other languages are provided through Moodle's language packs.
 
 ## Status
 
-Version 0.3.0, alpha. The model constants are the published FSRS-5 defaults and
+Version 0.3.2, beta. The model constants are the published FSRS-5 defaults and
 the Mode B thresholds are reasoned estimates rather than validated ones — the
 review log exists precisely so they can be refitted against real cohort data.
 
