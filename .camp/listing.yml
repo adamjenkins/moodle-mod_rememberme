@@ -16,9 +16,23 @@ labels:
   #   fully-free | freemium | paid-service | external-account
   #   donation-supported | commercial-support-available
   - fully-free
-# screenshots:
-#   - path: .camp/screenshots/overview.png
-#     caption: Main view
+screenshots:
+  - path: .camp/screenshots/01-study-question.png
+    caption: 'A learner opens the activity and the session starts: study days this week, today''s progress, what earns the grade, and a multiple choice question shown as options to tap.'
+  - path: .camp/screenshots/02-wrong-answer.png
+    caption: 'A wrong answer: a cross on the chosen option and a tick on the right one, so the result does not rely on colour. The question will come back in the same sitting.'
+  - path: .camp/screenshots/03-short-answer.png
+    caption: 'Other question types use Moodle''s own question display, here a short answer question marked correct.'
+  - path: .camp/screenshots/04-question-difficulty.png
+    caption: 'Teacher report: question difficulty across the group. Questions hard for nearly everyone are flagged as worth reviewing.'
+  - path: .camp/screenshots/05-coverage-retention.png
+    caption: 'Teacher report: how much of the pool each learner has seen and how much is established, with a review-load forecast below.'
+  - path: .camp/screenshots/06-band-progression.png
+    caption: 'Teacher report: band progression. A learner moved on by the backstop is flagged.'
+  - path: .camp/screenshots/07-weekly-completion.png
+    caption: 'Teacher report: study days against the days needed, for every learner and week. Weeks in the half-term break are not graded.'
+  - path: .camp/screenshots/08-question-pool-settings.png
+    caption: 'Activity settings: question categories bound to bands in syllabus order.'
 links:
   docs: https://github.com/adamjenkins/moodle-mod_rememberme#readme
   issues: https://github.com/adamjenkins/moodle-mod_rememberme/issues
