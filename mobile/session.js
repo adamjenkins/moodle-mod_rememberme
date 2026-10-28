@@ -120,6 +120,9 @@ this.chooseAnswer = async function(value) {
             response: [{name: this.choices.name, value: String(value)}],
         });
 
+        // The right option arrives only with the verdict; the view data
+        // leaves it out so it cannot be read before the learner chooses.
+        this.choices.correctvalue = result.correctvalue;
         this.verdict = result.correct ? 'right' : 'wrong';
         this.verdictLabel = result.correct ? this.rightLabel : this.wrongLabel;
         this.refresh();

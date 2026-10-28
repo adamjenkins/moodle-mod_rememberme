@@ -238,6 +238,62 @@ final class mobile_test extends \advanced_testcase {
     }
 
     /**
+     * The right option of a tappable question is not sent before it is answered.
+     *
+     * The app view used to carry it in otherdata, where anyone could read it
+     * from the get_content response and then submit it. It now arrives only
+     * with submit_answer's reply, after grading.
+     *
+     * @covers \mod_rememberme\external\submit_answer
+     * @return void
+     */
+    public function test_choices_do_not_reveal_the_answer_before_it_is_given(): void {
+        global $DB;
+
+        // A fresh pool holding a single multiple choice question, so the next
+        // slot is certain to be one the app presents as options.
+        $qbank = $this->getDataGenerator()->create_module('qbank', ['course' => $this->course->id]);
+        $category = question_get_default_category(\context_module::instance($qbank->cmid)->id);
+        $this->getDataGenerator()->get_plugin_generator('core_question')->create_question(
+            'multichoice',
+            'one_of_four',
+            ['category' => $category->id, 'idnumber' => 'mc1']
+        );
+        $module = $this->getDataGenerator()->create_module('rememberme', ['course' => $this->course->id]);
+        $this->getDataGenerator()->get_plugin_generator('mod_rememberme')
+            ->create_band((int)$module->id, (int)$category->id, 0);
+        $cm = get_coursemodule_from_instance('rememberme', $module->id, $this->course->id);
+
+        $this->setUser($this->student);
+        $result = mobile::mobile_course_view(['cmid' => (int)$cm->id]);
+
+        $this->assertArrayHasKey('choices', $result['otherdata'], 'the fixture must be presented as options');
+        $choices = json_decode($result['otherdata']['choices'], true);
+        $this->assertIsArray($choices);
+        $this->assertArrayNotHasKey('correctvalue', $choices, 'the right option must not reach the app unanswered');
+        $this->assertCount(4, $choices['choices']);
+
+        // The server still knows the answer; the reply to the answer carries it.
+        $instance = $DB->get_record('rememberme', ['id' => $module->id], '*', MUST_EXIST);
+        $session = new \mod_rememberme\local\session($instance, \context_module::instance($cm->id));
+        $this->assertTrue($session->load_or_start((int)$this->student->id));
+        $slot = (int)$result['otherdata']['slot'];
+        $expected = $session->get_choices($slot)['correctvalue'];
+        $this->assertGreaterThanOrEqual(0, $expected);
+
+        $reply = \mod_rememberme\external\submit_answer::execute((int)$cm->id, $slot, [
+            ['name' => $choices['name'], 'value' => (string)$expected],
+        ]);
+        $reply = \core_external\external_api::clean_returnvalue(
+            \mod_rememberme\external\submit_answer::execute_returns(),
+            $reply
+        );
+
+        $this->assertTrue($reply['correct']);
+        $this->assertSame($expected, $reply['correctvalue'], 'the verdict brings the right option with it');
+    }
+
+    /**
      * A teacher may look without accruing memory state of their own.
      *
      * @return void

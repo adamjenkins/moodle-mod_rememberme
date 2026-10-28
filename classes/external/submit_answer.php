@@ -100,7 +100,15 @@ class submit_answer extends external_api {
 
         $progress = helper::week_progress($session->get_scheduler(), (int)$USER->id);
 
-        return [
+        $feedback = [];
+        // The app's tappable options learn which one was right only from here,
+        // after grading, so the answer is never on the device beforehand.
+        $choices = $session->get_choices($slot);
+        if ($choices !== null) {
+            $feedback['correctvalue'] = (int)$choices['correctvalue'];
+        }
+
+        return $feedback + [
             'correct' => $result['correct'],
             'fraction' => $result['fraction'],
             'html' => $html,
@@ -127,6 +135,11 @@ class submit_answer extends external_api {
             'answered' => new external_value(PARAM_INT, 'Questions answered in this session'),
             'total' => new external_value(PARAM_INT, 'Questions in this session'),
             'pause' => new external_value(PARAM_INT, 'Milliseconds to show feedback before advancing'),
+            'correctvalue' => new external_value(
+                PARAM_INT,
+                'The right option of a single answer multiple choice question, once answered',
+                VALUE_OPTIONAL
+            ),
         ] + helper::progress_returns());
     }
 }

@@ -137,6 +137,10 @@ class mobile {
             'pauseincorrect' => (string)$instance->pauseincorrect,
         ];
         if ($choices !== null) {
+            // The right option stays on the server until the answer is in. The
+            // app shows it from submit_answer's reply; sent here, it would be
+            // readable in the get_content response before the learner chose.
+            unset($choices['correctvalue']);
             $otherdata['choices'] = json_encode($choices);
             // The verdict wording travels with the data rather than the
             // template, because the script announces it after the answer comes
