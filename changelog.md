@@ -5,6 +5,28 @@ All notable changes to this plugin are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.4] - 2026-11-10
+
+### Added
+
+- Privacy provider: exports each session's question engine responses (`rememberme_session.uniqueid`) through `core_question\privacy\provider::export_question_usage()`, under a "Study session responses" subcontext per session (new `provider::session_subcontext()`), and declares the `core_question` subsystem link in the metadata.
+- Lang strings `privacy:metadata:core_question` and `privacy:sessionsubcontext`.
+- New tests in `tests/mobile_test.php`, `tests/report_test.php` and `tests/privacy_provider_test.php`.
+- Listing screenshots and captions for the camp registry in `.camp/`.
+
+### Changed
+
+- `mod/rememberme:viewreports` now carries `RISK_PERSONAL` in `db/access.php`; `$plugin->version` is bumped so the capability definition is re-read on upgrade.
+
+### Fixed
+
+- Moodle app: the single-answer multiple choice view no longer puts `correctvalue` into the `choices` otherdata of the `get_content` response (`classes/output/mobile.php`). `mod_rememberme_submit_answer` now returns an optional `correctvalue` with the verdict once the answer is graded, and `mobile/session.js` takes it from that reply to mark the right option.
+- Reports: in separate groups mode, a viewer in no group and without `moodle/site:accessallgroups` got active group 0, which meant every participant. `report.php` now shows core's `notingroup` notice and stops, via the new `report_renderer_helper::no_group_access()`.
+
+### Security
+
+- The two fixes above close a right-answer leak in the app view and a cross-group disclosure in the reports.
+
 ## [0.3.3] - 2026-10-04
 
 ### Changed

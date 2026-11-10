@@ -1,5 +1,8 @@
 # Changes
 
-## 0.3.3 — 2026-10-04
+## 0.3.4 — 2026-11-10
 
-- No change to the plugin itself. Release archives now leave out development files (.github, .camp, tests and similar), and this release publishes the 0.3.2 changes to the camp registry, where the 0.3.2 publish did not complete. See changelog.md for 0.3.2.
+- Moodle app: a multiple choice question no longer gives away its right answer before the learner answers. The app learns which option was right only once the answer has been marked, and still shows it with the result as before.
+- Reports: in separate groups mode, a teacher who belongs to no group and cannot access all groups now sees a "not in a group" notice instead of every learner's results.
+- Privacy: a learner's data export now includes the answers they gave in each study session, with marks and feedback, and the privacy metadata declares that these answers are stored by Moodle's question subsystem.
+- The "view reports" capability is now flagged as a personal-information risk, since the reports show learners' names and progress. No role changes are needed.
