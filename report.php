@@ -93,6 +93,14 @@ if ($groupmode) {
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('reports', 'rememberme'));
 
+// A viewer confined to separate groups who belongs to none gets group 0 back
+// from core, which would mean every learner. Show them nothing instead.
+if (report_renderer_helper::no_group_access((int)$groupmode, $groupid, $context)) {
+    echo $OUTPUT->notification(get_string('notingroup'), \core\output\notification::NOTIFY_INFO);
+    echo $OUTPUT->footer();
+    exit;
+}
+
 if (has_capability('mod/rememberme:recalculategrades', $context)) {
     $button = new single_button(
         new moodle_url($url, ['action' => 'recalculate']),

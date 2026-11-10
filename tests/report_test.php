@@ -247,4 +247,47 @@ final class report_test extends \advanced_testcase {
         $this->assertStringContainsString(get_string('poolsize', 'mod_rememberme', 37), $html);
         $this->assertStringContainsString('37', $html);
     }
+
+    /**
+     * The report capability is flagged as a personal data risk in the role UI.
+     */
+    public function test_viewreports_carries_risk_personal(): void {
+        $info = get_capability_info('mod/rememberme:viewreports');
+        $this->assertNotEmpty($info);
+        $this->assertSame(RISK_PERSONAL, $info->riskbitmask & RISK_PERSONAL);
+    }
+
+    /**
+     * In separate groups mode a non-editing teacher in no group is refused the
+     * reports, rather than being shown every learner through group 0.
+     */
+    public function test_no_group_access_in_separate_groups(): void {
+        $context = \context_module::instance($this->module->cmid);
+        $generator = $this->getDataGenerator();
+        $group = $generator->create_group(['courseid' => $this->course->id]);
+        $generator->create_group_member(['groupid' => $group->id, 'userid' => $this->student->id]);
+
+        $teacher = $generator->create_user();
+        $generator->enrol_user($teacher->id, $this->course->id, 'teacher');
+        $editing = $generator->create_user();
+        $generator->enrol_user($editing->id, $this->course->id, 'editingteacher');
+
+        $this->setUser($teacher);
+        $this->assertTrue(report_renderer_helper::no_group_access(SEPARATEGROUPS, 0, $context));
+        $this->assertFalse(
+            report_renderer_helper::no_group_access(SEPARATEGROUPS, (int)$group->id, $context),
+            'a real group is fine'
+        );
+        $this->assertFalse(
+            report_renderer_helper::no_group_access(VISIBLEGROUPS, 0, $context),
+            'visible groups may show everyone'
+        );
+        $this->assertFalse(report_renderer_helper::no_group_access(NOGROUPS, 0, $context));
+
+        $this->setUser($editing);
+        $this->assertFalse(
+            report_renderer_helper::no_group_access(SEPARATEGROUPS, 0, $context),
+            'accessallgroups may see all participants'
+        );
+    }
 }

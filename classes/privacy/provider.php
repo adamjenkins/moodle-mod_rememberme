@@ -133,6 +133,10 @@ class provider implements
             'privacy:metadata:rememberme_slot'
         );
 
+        // The learner's answers themselves live in the question engine, under
+        // the usage each session owns.
+        $collection->add_subsystem_link('core_question', [], 'privacy:metadata:core_question');
+
         return $collection;
     }
 
@@ -266,7 +270,69 @@ class provider implements
                 }
                 $writer->export_related_data([], $name, (object)[$name => $rows]);
             }
+
+            self::export_question_usages($cm->instance, $context, (int)$user->id);
         }
+    }
+
+    /**
+     * Export the question engine responses behind each of the learner's sessions.
+     *
+     * Each session owns one question usage (rememberme_session.uniqueid), which
+     * holds what the learner actually answered. Core exports it, as it does for
+     * a quiz attempt, under a subcontext named for the session.
+     *
+     * @param int $instanceid The rememberme instance id.
+     * @param \context $context The module context.
+     * @param int $userid The learner.
+     */
+    protected static function export_question_usages(int $instanceid, \context $context, int $userid): void {
+        global $CFG, $DB;
+
+        $sessions = $DB->get_records(
+            'rememberme_session',
+            ['rememberme' => $instanceid, 'userid' => $userid],
+            'id ASC',
+            'id, uniqueid'
+        );
+        if (empty($sessions)) {
+            return;
+        }
+
+        require_once($CFG->libdir . '/questionlib.php');
+
+        // The learner has already seen feedback, the right answer and their
+        // mark for every question they answered, so their own export holds it.
+        $options = new \question_display_options();
+        $options->marks = \question_display_options::MARK_AND_MAX;
+        $options->feedback = \question_display_options::VISIBLE;
+        $options->generalfeedback = \question_display_options::VISIBLE;
+        $options->rightanswer = \question_display_options::VISIBLE;
+        $options->correctness = \question_display_options::VISIBLE;
+
+        foreach ($sessions as $session) {
+            if (empty($session->uniqueid)) {
+                continue;
+            }
+            \core_question\privacy\provider::export_question_usage(
+                $userid,
+                $context,
+                self::session_subcontext((int)$session->id),
+                (int)$session->uniqueid,
+                $options,
+                true
+            );
+        }
+    }
+
+    /**
+     * The export subcontext holding one session's question responses.
+     *
+     * @param int $sessionid The rememberme_session id.
+     * @return array The subcontext path.
+     */
+    public static function session_subcontext(int $sessionid): array {
+        return [get_string('privacy:sessionsubcontext', 'rememberme'), (string)$sessionid];
     }
 
     /**

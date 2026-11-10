@@ -59,7 +59,9 @@ $capabilities = [
         ],
     ],
 
+    // The reports show every learner's name, retention and weekly completion.
     'mod/rememberme:viewreports' => [
+        'riskbitmask' => RISK_PERSONAL,
         'captype' => 'read',
         'contextlevel' => CONTEXT_MODULE,
         'archetypes' => [

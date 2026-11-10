@@ -331,6 +331,7 @@ final class privacy_provider_test extends \core_privacy\tests\provider_testcase 
             'rememberme_bandstate',
             'rememberme_session',
             'rememberme_slot',
+            'core_question',
         ], $names);
     }
 
@@ -413,6 +414,27 @@ final class privacy_provider_test extends \core_privacy\tests\provider_testcase 
         $this->assertCount(1, $sessions->sessions[0]->slots);
         $this->assertEquals($this->questionbankentryid, $sessions->sessions[0]->slots[0]->questionbankentryid);
         $this->assertNotEmpty($sessions->sessions[0]->slots[0]->timeshownms, 'the millisecond stamp is exported');
+
+        // The question engine responses behind the session are exported too,
+        // under a subcontext for that session, as mod_quiz does per attempt.
+        $usages = $this->get_sessions($this->instance, $this->student);
+        $this->assertCount(1, $usages);
+        $session = reset($usages);
+        $questionpath = array_merge(
+            provider::session_subcontext((int)$session->id),
+            [get_string('questions', 'core_question'), 1]
+        );
+        $question = $writer->get_data($questionpath);
+        $this->assertNotEmpty($question, 'the question usage is exported');
+        $this->assertObjectHasProperty('answer', $question);
+
+        // The other learner's usage is not in this learner's export.
+        $other = $this->get_sessions($this->instance, $this->otherstudent);
+        $othersession = reset($other);
+        $this->assertEmpty($writer->get_data(array_merge(
+            provider::session_subcontext((int)$othersession->id),
+            [get_string('questions', 'core_question'), 1]
+        )));
     }
 
     /**

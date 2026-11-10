@@ -111,6 +111,26 @@ class report_renderer_helper {
     }
 
     /**
+     * Whether the viewer must be refused the reports because of group mode.
+     *
+     * In separate groups mode core reports an active group of 0 for a viewer
+     * who belongs to no group (lib/grouplib.php, _group_verify_activegroup,
+     * "mod authors must add extra checks"), and group 0 here means every
+     * participant. A viewer without moodle/site:accessallgroups in that state
+     * would otherwise see every learner, so they see nothing instead.
+     *
+     * @param int $groupmode The activity's effective group mode.
+     * @param int $groupid The active group from groups_get_activity_group().
+     * @param \context $context The module context.
+     * @return bool True if the reports must not be shown.
+     */
+    public static function no_group_access(int $groupmode, int $groupid, \context $context): bool {
+        return $groupmode == SEPARATEGROUPS
+            && empty($groupid)
+            && !has_capability('moodle/site:accessallgroups', $context);
+    }
+
+    /**
      * The report modes, in tab order.
      *
      * @return array List of mode names.
